@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webmcp-lint"
+version = "0.1.0"
+description = "Security and spec-correctness linter for WebMCP tool manifests."
+readme = "README.md"
+license = { text = "Prosperity Public License 3.0.0" }
+requires-python = ">=3.9"
+authors = [{ name = "Cole Munz" }]
+dependencies = []
+keywords = ["webmcp", "mcp", "security", "linter", "prompt-injection",
+            "tool-poisoning", "static-analysis", "sast", "chrome"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/munzzyy/webmcp-lint"
+Issues = "https://github.com/munzzyy/webmcp-lint/issues"
+
+[project.scripts]
+webmcp-lint = "webmcp_lint.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["webmcp_lint*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
