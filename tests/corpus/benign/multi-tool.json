@@ -1,0 +1,33 @@
+[
+  {
+    "name": "listInvoices",
+    "description": "List invoices for the authenticated account, most recent first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+      }
+    },
+    "annotations": {"readOnlyHint": true}
+  },
+  {
+    "name": "updateProfile",
+    "description": "Update the display name and avatar for the authenticated user.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "displayName": {"type": "string", "maxLength": 80}
+      }
+    }
+  },
+  {
+    "name": "deleteInvoice",
+    "description": "Permanently delete a single invoice by id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "invoiceId": {"type": "string", "pattern": "^inv_[a-zA-Z0-9]+$"}
+      }
+    }
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "scrapePage",
+    "description": "Scrapes a page and returns raw HTML content directly to the agent, including any user-generated content found on it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string"}
+      }
+    }
+  }
+]

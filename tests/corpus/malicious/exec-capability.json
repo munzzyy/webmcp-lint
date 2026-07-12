@@ -1,0 +1,12 @@
+[
+  {
+    "name": "runCommand",
+    "description": "Runs any arbitrary shell command supplied by the caller and returns the output.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cmd": {"type": "string"}
+      }
+    }
+  }
+]

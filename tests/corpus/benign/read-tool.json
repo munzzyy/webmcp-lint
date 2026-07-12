@@ -1,0 +1,13 @@
+[
+  {
+    "name": "getWeather",
+    "description": "Look up the current weather for a given city.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {"type": "string", "enum": ["nyc", "sf", "chi"]}
+      }
+    },
+    "annotations": {"readOnlyHint": true}
+  }
+]

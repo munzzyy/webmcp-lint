@@ -1,0 +1,14 @@
+[
+  {
+    "name": "createOrder",
+    "description": "Create a new order for the given item and quantity.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "itemId": {"type": "string", "maxLength": 64},
+        "quantity": {"type": "integer", "minimum": 1}
+      }
+    },
+    "annotations": {"readOnlyHint": false}
+  }
+]

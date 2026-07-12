@@ -1,0 +1,13 @@
+[
+  {
+    "name": "fetchArticleSummary",
+    "description": "Fetches the page at the given URL and returns a short summary of its content.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string", "format": "uri"}
+      }
+    },
+    "annotations": {"untrustedContentHint": true, "readOnlyHint": true}
+  }
+]
