@@ -15,12 +15,18 @@ don't trip them.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from ..finding import Category, Severity
 from ._util import mk
 
 RULE_ID = "WML-003"
 _I = re.IGNORECASE
+# Fold everything except letters, digits, and ':' to a single space. The colon
+# is kept literal because the fake-role-header pattern below matches on it
+# ("system:"); every other separator (underscores, punctuation, whitespace
+# runs) is noise an attacker can hide a phrase behind.
+_SEPARATORS = re.compile(r"[^A-Za-z0-9:]+")
 
 # (compiled, title, detail)
 _PATTERNS = (
@@ -58,14 +64,32 @@ _PATTERNS = (
 )
 
 
+def _fold_for_matching(text: str) -> str:
+    """Collapse Unicode look-alikes and separator noise before matching.
+
+    NFKC maps "compatibility" variants - fullwidth letters, an ideographic
+    space, ligatures - down to their ordinary ASCII form, so a phrase spelled
+    in fullwidth Unicode reads the same to the regex as the plain-ASCII one.
+    Folding every non-alphanumeric run (underscores included, colon
+    excepted) to a single space closes the other bypass: swapping spaces for
+    underscores or punctuation still reads fine to an agent but used to
+    slide past a \\s+-only pattern outright.
+
+    This folded copy is used ONLY to decide whether a pattern matches -
+    findings still report the tool's original, unmodified name/description.
+    """
+    return _SEPARATORS.sub(" ", unicodedata.normalize("NFKC", text))
+
+
 def check(manifest) -> list:
     findings = []
     for tool in manifest.tools:
         for field_name, value in (("name", tool.name), ("description", tool.description)):
             if not value:
                 continue
+            haystack = _fold_for_matching(value)
             for rx, title, detail in _PATTERNS:
-                if not rx.search(value):
+                if not rx.search(haystack):
                     continue
                 label = tool.name or f"tool #{tool.index}"
                 findings.append(mk(
