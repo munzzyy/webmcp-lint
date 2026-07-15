@@ -73,6 +73,18 @@ webmcp-lint ./public                    # looks for mcp.json / webmcp.json / .we
 webmcp-lint "manifests/*.json"          # glob, expanded by the tool (works on Windows too)
 ```
 
+### pre-commit
+
+You can run `webmcp-lint` as a [pre-commit](https://pre-commit.com/) hook. Add this to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/munzzyy/webmcp-lint
+    rev: v0.1.0 # replace with latest tag
+    hooks:
+      - id: webmcp-lint
+```
+
 ### In CI
 
 webmcp-lint exits non-zero when it finds something at or above a severity you choose:
