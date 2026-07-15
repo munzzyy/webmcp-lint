@@ -4,6 +4,8 @@
 [![License: Prosperity 3.0.0](https://img.shields.io/badge/license-Prosperity--3.0.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
+![webmcp-lint flagging a hide-from-user prompt injection and two unconstrained risky parameters in a three-tool manifest](docs/media/demo.svg)
+
 webmcp-lint checks a WebMCP tool manifest before a site publishes it. WebMCP lets a webpage expose "tools" to a browser AI agent, and a tool's own name, description, and schema are read as trusted context the moment the agent sees them, so a bad one is a security problem before it's ever called. Point this at your manifest and it reports missing safety hints, prompt injection, unconstrained risky parameters, and hidden Unicode, against the checks in [Chrome's WebMCP secure-tools guidance](https://developer.chrome.com/docs/ai/webmcp/secure-tools).
 
 ```

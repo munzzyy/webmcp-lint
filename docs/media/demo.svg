@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="820" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14">
+<rect width="840" height="820" rx="8" fill="#0d1117"/>
+<rect width="840" height="30" rx="8" fill="#161b22"/>
+<rect y="22" width="840" height="8" fill="#161b22"/>
+<circle cx="18" cy="15" r="5.5" fill="#ff5f57"/>
+<circle cx="38" cy="15" r="5.5" fill="#febc2e"/>
+<circle cx="58" cy="15" r="5.5" fill="#28c840"/>
+<text x="420" y="19" text-anchor="middle" fill="#8b949e" font-size="12">webmcp-lint examples/example-manifest.json</text>
+<text x="16.0" y="44" fill="#98c379" font-weight="normal" xml:space="preserve">$</text>
+<text x="24.4" y="44" fill="#abb2bf" font-weight="normal" xml:space="preserve"> webmcp-lint examples/example-manifest.json</text>
+<text x="16.0" y="82" fill="#abb2bf" font-weight="normal" xml:space="preserve">  webmcp-lint  examples/example-manifest.json</text>
+<text x="16.0" y="101" fill="#abb2bf" font-weight="normal" xml:space="preserve">  1 manifest(s), 3 tool(s) scanned</text>
+<text x="16.0" y="139" fill="#abb2bf" font-weight="normal" xml:space="preserve">  </text>
+<text x="32.8" y="139" fill="#e06c75" font-weight="normal" xml:space="preserve">   HIGH   </text>
+<text x="117.0" y="139" fill="#abb2bf" font-weight="normal" xml:space="preserve"> Hide-from-user directive (description)  [WML-003 - prompt-injection]</text>
+<text x="16.0" y="158" fill="#abb2bf" font-weight="normal" xml:space="preserve">           examples/example-manifest.json  tool &quot;runSupportMacro&quot;</text>
+<text x="16.0" y="177" fill="#abb2bf" font-weight="normal" xml:space="preserve">           &quot;runSupportMacro&quot; description: Instructs the agent to conceal an action or result fro</text>
+<text x="16.0" y="196" fill="#abb2bf" font-weight="normal" xml:space="preserve">  m the user.</text>
+<text x="16.0" y="215" fill="#5c6370" font-weight="normal" xml:space="preserve">           fix: Remove the directive. A tool description should describe a capability, not instr</text>
+<text x="16.0" y="234" fill="#5c6370" font-weight="normal" xml:space="preserve">  uct the agent to bypass its own rules or hide actions from the user.</text>
+<text x="16.0" y="272" fill="#abb2bf" font-weight="normal" xml:space="preserve">  </text>
+<text x="32.8" y="272" fill="#e5c07b" font-weight="normal" xml:space="preserve">  MEDIUM  </text>
+<text x="117.0" y="272" fill="#abb2bf" font-weight="normal" xml:space="preserve"> Unconstrained &quot;url&quot; parameter  [WML-004 - risky-parameter]</text>
+<text x="16.0" y="291" fill="#abb2bf" font-weight="normal" xml:space="preserve">           examples/example-manifest.json  tool &quot;summarizeReviews&quot;</text>
+<text x="16.0" y="310" fill="#abb2bf" font-weight="normal" xml:space="preserve">           &quot;summarizeReviews&quot; takes &quot;url&quot; as a free-form string with no enum, format, pattern, o</text>
+<text x="16.0" y="329" fill="#abb2bf" font-weight="normal" xml:space="preserve">  r maxLength. Parameter names like this often carry command, path, or URL payloads, so the agen</text>
+<text x="16.0" y="348" fill="#abb2bf" font-weight="normal" xml:space="preserve">  t can be steered into passing something dangerous.</text>
+<text x="16.0" y="367" fill="#5c6370" font-weight="normal" xml:space="preserve">           fix: Constrain the parameter: an enum of allowed values, a format/pattern, a maxLengt</text>
+<text x="16.0" y="386" fill="#5c6370" font-weight="normal" xml:space="preserve">  h, or a narrower composite schema.</text>
+<text x="16.0" y="424" fill="#abb2bf" font-weight="normal" xml:space="preserve">  </text>
+<text x="32.8" y="424" fill="#e5c07b" font-weight="normal" xml:space="preserve">  MEDIUM  </text>
+<text x="117.0" y="424" fill="#abb2bf" font-weight="normal" xml:space="preserve"> Unconstrained &quot;command&quot; parameter  [WML-004 - risky-parameter]</text>
+<text x="16.0" y="443" fill="#abb2bf" font-weight="normal" xml:space="preserve">           examples/example-manifest.json  tool &quot;runSupportMacro&quot;</text>
+<text x="16.0" y="462" fill="#abb2bf" font-weight="normal" xml:space="preserve">           &quot;runSupportMacro&quot; takes &quot;command&quot; as a free-form string with no enum, format, pattern</text>
+<text x="16.0" y="481" fill="#abb2bf" font-weight="normal" xml:space="preserve">  , or maxLength. Parameter names like this often carry command, path, or URL payloads, so the a</text>
+<text x="16.0" y="500" fill="#abb2bf" font-weight="normal" xml:space="preserve">  gent can be steered into passing something dangerous.</text>
+<text x="16.0" y="519" fill="#5c6370" font-weight="normal" xml:space="preserve">           fix: Constrain the parameter: an enum of allowed values, a format/pattern, a maxLengt</text>
+<text x="16.0" y="538" fill="#5c6370" font-weight="normal" xml:space="preserve">  h, or a narrower composite schema.</text>
+<text x="16.0" y="576" fill="#abb2bf" font-weight="normal" xml:space="preserve">  </text>
+<text x="32.8" y="576" fill="#e5c07b" font-weight="normal" xml:space="preserve">  MEDIUM  </text>
+<text x="117.0" y="576" fill="#abb2bf" font-weight="normal" xml:space="preserve"> Handles external content without untrustedContentHint  [WML-002 - untrusted-content</text>
+<text x="16.0" y="595" fill="#abb2bf" font-weight="normal" xml:space="preserve">  ]</text>
+<text x="16.0" y="614" fill="#abb2bf" font-weight="normal" xml:space="preserve">           examples/example-manifest.json  tool &quot;summarizeReviews&quot;</text>
+<text x="16.0" y="633" fill="#abb2bf" font-weight="normal" xml:space="preserve">           &quot;summarizeReviews&quot; reads as handling outside content (&quot;Fetches the page&quot;) but annotat</text>
+<text x="16.0" y="652" fill="#abb2bf" font-weight="normal" xml:space="preserve">  ions.untrustedContentHint is not true. Whatever it returns can carry its own instructions aime</text>
+<text x="16.0" y="671" fill="#abb2bf" font-weight="normal" xml:space="preserve">  d at the agent.</text>
+<text x="16.0" y="690" fill="#5c6370" font-weight="normal" xml:space="preserve">           fix: Set annotations.untrustedContentHint to true so callers treat the result as data</text>
+<text x="16.0" y="709" fill="#5c6370" font-weight="normal" xml:space="preserve">  , not directives.</text>
+<text x="16.0" y="747" fill="#abb2bf" font-weight="normal" xml:space="preserve">  </text>
+<text x="32.8" y="747" fill="#e06c75" font-weight="normal" xml:space="preserve">1 high</text>
+<text x="83.4" y="747" fill="#abb2bf" font-weight="normal" xml:space="preserve">, </text>
+<text x="100.2" y="747" fill="#e5c07b" font-weight="normal" xml:space="preserve">3 medium</text>
+<text x="167.6" y="747" fill="#abb2bf" font-weight="normal" xml:space="preserve">   (4 total)</text>
+<text x="16.0" y="785" fill="#abb2bf" font-weight="normal" xml:space="preserve">  Grade: </text>
+<text x="91.8" y="785" fill="#e5c07b" font-weight="normal" xml:space="preserve">D</text>
+<text x="100.2" y="785" fill="#abb2bf" font-weight="normal" xml:space="preserve">  (67/100)</text>
+</svg>
