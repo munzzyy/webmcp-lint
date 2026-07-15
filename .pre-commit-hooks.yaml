@@ -1,0 +1,5 @@
+- id: webmcp-lint
+  name: 'webmcp-lint (WebMCP manifest lint)'
+  entry: webmcp-lint
+  language: python
+  files: '(^|/)(mcp\.json|webmcp\.json|\.well-known/mcp\.json)$'
