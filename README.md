@@ -104,6 +104,31 @@ It also speaks SARIF, so findings show up in the GitHub Security tab:
     sarif_file: webmcp-lint.sarif
 ```
 
+### GitHub Action
+
+Or skip wiring the above by hand and use the bundled composite action, which installs
+webmcp-lint, scans, uploads the SARIF, and fails the job on your `fail-on` threshold in one step:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write  # required so upload-sarif can write to the Security tab
+
+jobs:
+  webmcp-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: munzzyy/webmcp-lint@v0.1.0
+        with:
+          path: mcp.json      # file, directory, or glob (default: ".")
+          fail-on: high        # default: high
+```
+
+webmcp-lint isn't on PyPI yet, so the action installs straight from the tagged source; `ref`
+(default `v0.1.0`) picks which tag it installs. SARIF upload always runs with every finding,
+independent of `fail-on` — the threshold only decides whether the job itself passes or fails.
+
 ### Output formats
 
 - default - colored human report
