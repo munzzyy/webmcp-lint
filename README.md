@@ -131,3 +131,7 @@ Found a manifest that should have been flagged and wasn't, or a false positive? 
 ## License
 
 MIT — free to use, change, and ship, commercial or not. See [LICENSE](LICENSE).
+
+## Support
+
+If webmcp-lint flagged a manifest before it shipped, [sponsoring](https://github.com/sponsors/munzzyy) is what keeps the rules current.
