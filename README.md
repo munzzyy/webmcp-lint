@@ -1,7 +1,7 @@
 # webmcp-lint
 
 [![CI](https://github.com/munzzyy/webmcp-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/munzzyy/webmcp-lint/actions/workflows/ci.yml)
-[![License: Prosperity 3.0.0](https://img.shields.io/badge/license-Prosperity--3.0.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
 ![webmcp-lint flagging a hide-from-user prompt injection and two unconstrained risky parameters in a three-tool manifest](docs/media/demo.svg)
@@ -130,4 +130,4 @@ Found a manifest that should have been flagged and wasn't, or a false positive? 
 
 ## License
 
-Prosperity Public License 3.0.0 - free for noncommercial use, thirty-day trial for commercial use. See [LICENSE](LICENSE). Contributions come in under the Blue Oak Model License; see [CONTRIBUTING.md](CONTRIBUTING.md).
+MIT — free to use, change, and ship, commercial or not. See [LICENSE](LICENSE).
