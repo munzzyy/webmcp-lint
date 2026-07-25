@@ -62,7 +62,7 @@ def _scan(text: str) -> list:
 def check(manifest) -> list:
     findings = []
     for tool in manifest.tools:
-        for field_name, value in (("name", tool.name), ("description", tool.description)):
+        for field_name, value in (("name", tool.name), ("title", tool.title), ("description", tool.description)):
             hits = _scan(value)
             if not hits:
                 continue

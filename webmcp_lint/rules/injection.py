@@ -26,7 +26,20 @@ _I = re.IGNORECASE
 # is kept literal because the fake-role-header pattern below matches on it
 # ("system:"); every other separator (underscores, punctuation, whitespace
 # runs) is noise an attacker can hide a phrase behind.
-_SEPARATORS = re.compile(r"[^A-Za-z0-9:]+")
+# Fold every separator run to a single space EXCEPT newlines, which are kept
+# literal. A phrase pattern's \s+ still crosses a literal newline, so a payload
+# wrapped across a line break is caught; and the role-header anchor can pin a
+# "system:" header to the start of any line. The colon is kept for that anchor.
+_SEPARATORS = re.compile(r"[^A-Za-z0-9:\n]+")
+
+# A GENUINE sentence boundary: end punctuation followed by whitespace/quote.
+# Folding collapses separators, but a phrase pattern's \s+ must not be allowed
+# to bridge two unrelated *sentences* - so we split on real sentence boundaries
+# first, fold each piece, then rejoin with a sentinel \s+ can't cross. A bare
+# newline is NOT a sentence boundary (it's ordinary wrapping an attacker can
+# drop mid-phrase), so it never becomes this wall.
+_BREAK = re.compile(r"[^A-Za-z0-9:]*[.!?][\s\"')\]][^A-Za-z0-9:]*")
+_SENTINEL = "\x00"
 
 # (compiled, title, detail)
 _PATTERNS = (
@@ -54,7 +67,7 @@ _PATTERNS = (
     (re.compile(r"\byou\s+are\s+now\s+(?:a|an|in|the|no\s+longer)\b", _I),
      "Persona-override phrasing",
      "Attempts to redefine what the agent is, a common jailbreak opener."),
-    (re.compile(r"^\s*(?:system|assistant)\s*:\s*\S", _I | re.MULTILINE),
+    (re.compile(r"(?:^|\x00|\n)\s*(?:system|assistant)\s*:\s*\S", _I),
      "Fake role header",
      'Opens with a "system:"/"assistant:" style header, mimicking a real chat-role '
      "message to smuggle instructions into the agent's context."),
@@ -75,16 +88,27 @@ def _fold_for_matching(text: str) -> str:
     underscores or punctuation still reads fine to an agent but used to
     slide past a \\s+-only pattern outright.
 
+    Genuine sentence boundaries (end punctuation + whitespace) are preserved as
+    a sentinel the phrase patterns' \\s+ can't span, so a pattern can't weld two
+    unrelated sentences ("...you can safely ignore. Previous instructions...")
+    into a false hit. A bare newline is left as a literal newline instead: \\s+
+    still crosses it - so a payload wrapped across a line break ("ignore all
+    previous\\ninstructions") is still caught, not silently dropped - while the
+    fake-role-header anchor still pins a "system:" header to the start of any
+    line, not only the first.
+
     This folded copy is used ONLY to decide whether a pattern matches -
     findings still report the tool's original, unmodified name/description.
     """
-    return _SEPARATORS.sub(" ", unicodedata.normalize("NFKC", text))
+    normalized = unicodedata.normalize("NFKC", text)
+    segments = (_SEPARATORS.sub(" ", seg) for seg in _BREAK.split(normalized))
+    return _SENTINEL.join(segments)
 
 
 def check(manifest) -> list:
     findings = []
     for tool in manifest.tools:
-        for field_name, value in (("name", tool.name), ("description", tool.description)):
+        for field_name, value in (("name", tool.name), ("title", tool.title), ("description", tool.description)):
             if not value:
                 continue
             haystack = _fold_for_matching(value)

@@ -36,6 +36,7 @@ class Tool:
     index: int  # position in the tools array, 0-based
     raw: dict  # the tool object as parsed ({} if the array entry wasn't an object)
     name: str  # "" if missing or not a string
+    title: str  # "" if missing or not a string; a human-facing display label
     description: str  # "" if missing or not a string
     annotations: dict  # {} if missing or not an object
     has_input_schema: bool  # True only if the "inputSchema" key is present at all
@@ -111,6 +112,8 @@ def _normalize_tool(index: int, raw) -> Tool:
     d = raw if isinstance(raw, dict) else {}
     name = d.get("name")
     name = name if isinstance(name, str) else ""
+    title = d.get("title")
+    title = title if isinstance(title, str) else ""
     description = d.get("description")
     description = description if isinstance(description, str) else ""
     annotations = d.get("annotations")
@@ -123,6 +126,7 @@ def _normalize_tool(index: int, raw) -> Tool:
         index=index,
         raw=d,
         name=name,
+        title=title,
         description=description,
         annotations=annotations,
         has_input_schema=has_input_schema,
