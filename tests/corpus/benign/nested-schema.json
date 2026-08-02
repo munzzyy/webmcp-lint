@@ -1,0 +1,28 @@
+[
+  {
+    "name": "createBatchJob",
+    "description": "Queue a batch of export jobs for the signed-in account.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "object",
+          "description": "Per-run options for the batch.",
+          "properties": {
+            "command": {"type": "string", "enum": ["export", "archive"]},
+            "path": {"type": "string", "pattern": "^/exports/[a-z0-9-]+$"}
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {"type": "string", "format": "uri", "description": "Destination the export is uploaded to."}
+            }
+          }
+        }
+      }
+    }
+  }
+]

@@ -13,9 +13,14 @@ from __future__ import annotations
 import re
 
 from ..finding import Category, Severity
-from ._util import mk
+from ._util import annotation_state, mk
 
 RULE_ID = "WML-002"
+TITLE = "External content handled without untrustedContentHint"
+SUMMARY = (
+    "A tool that reads as fetching, scraping, or returning content from "
+    "outside the page without annotations.untrustedContentHint set to true."
+)
 _I = re.IGNORECASE
 
 # (pattern, severity). HIGH for phrasing that hands back raw/uncurated
@@ -24,7 +29,13 @@ _I = re.IGNORECASE
 _PATTERNS = (
     (re.compile(r"\breturns?\s+(?:raw\s+)?html\b", _I), Severity.HIGH),
     (re.compile(r"\buser[\s-]generated\s+content\b", _I), Severity.HIGH),
-    (re.compile(r"\buser\s+content\b", _I), Severity.HIGH),
+    # "user content" on its own is ordinary product English - a settings panel
+    # can say it without touching anything external - and firing HIGH on it
+    # broke the default CI gate for people whose manifests were fine. It needs
+    # a verb of handling in front of it to mean what this rule claims.
+    (re.compile(r"\b(?:returns?|render(?:s|ing)?|displays?|shows?|surfaces?|includes?"
+                r"|embeds?|process(?:es)?|reads?|fetch(?:es)?|serves?)\s+"
+                r"(?:the\s+|any\s+|all\s+|raw\s+)*user\s+content\b", _I), Severity.HIGH),
     (re.compile(r"\bthird[\s-]party\s+content\b", _I), Severity.HIGH),
     (re.compile(r"\bscrapes?\b", _I), Severity.MEDIUM),
     (re.compile(r"\bcrawls?\b", _I), Severity.MEDIUM),
@@ -42,7 +53,8 @@ _PATTERNS = (
 def check(manifest) -> list:
     findings = []
     for tool in manifest.tools:
-        if tool.annotations.get("untrustedContentHint") is True:
+        state = annotation_state(tool.annotations, "untrustedContentHint")
+        if state == "true":
             continue
         text = f"{tool.name} {tool.description}"
         best_sev = None
@@ -59,8 +71,10 @@ def check(manifest) -> list:
             RULE_ID, Category.UNTRUSTED, best_sev, manifest.relpath,
             "Handles external content without untrustedContentHint",
             f'"{label}" reads as handling outside content ("{best_match.strip()}") but '
-            "annotations.untrustedContentHint is not true. Whatever it returns can carry "
-            "its own instructions aimed at the agent.",
+            "annotations.untrustedContentHint "
+            + ("is set to a value that is not the boolean true"
+               if state == "wrongtype" else "is not true")
+            + ". Whatever it returns can carry its own instructions aimed at the agent.",
             "Set annotations.untrustedContentHint to true so callers treat the result as "
             "data, not directives.",
             tool=tool.name, tool_index=tool.index,

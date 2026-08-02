@@ -10,9 +10,14 @@ the name alone - exactly the mismatch this rule catches.
 from __future__ import annotations
 
 from ..finding import Category, Severity
-from ._util import mk
+from ._util import annotation_state, mk
 
 RULE_ID = "WML-001"
+TITLE = "Read-shaped name without readOnlyHint"
+SUMMARY = (
+    "A tool named like a lookup (getBalance, list_orders) that does not set "
+    "annotations.readOnlyHint to true."
+)
 
 READ_VERBS = ("get", "list", "read", "search", "fetch", "view", "query")
 
@@ -48,13 +53,18 @@ def check(manifest) -> list:
     for tool in manifest.tools:
         if not tool.name or not is_read_shaped(tool.name):
             continue
-        if tool.annotations.get("readOnlyHint") is True:
+        state = annotation_state(tool.annotations, "readOnlyHint")
+        if state == "true":
             continue
+        # An author who wrote "true" as a string did set the hint. Telling them
+        # it is missing sends them looking for a key that is already there.
+        how = ("is set to a value that is not the boolean true"
+               if state == "wrongtype" else "is not set to true")
         findings.append(mk(
             RULE_ID, Category.READONLY, Severity.MEDIUM, manifest.relpath,
             "Read-shaped name is not marked read-only",
-            f'"{tool.name}" reads like a lookup but annotations.readOnlyHint is not '
-            "set to true. If it only reads data, agents lose the ability to treat it "
+            f'"{tool.name}" reads like a lookup but annotations.readOnlyHint {how}'
+            ". If it only reads data, agents lose the ability to treat it "
             "as safe to retry or call speculatively; if it mutates state, the name is misleading.",
             "Set annotations.readOnlyHint to true if the tool truly only reads data, "
             "otherwise rename it so it doesn't read as a lookup.",

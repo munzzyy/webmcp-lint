@@ -12,6 +12,11 @@ from ..finding import Category, Severity
 from ._util import mk
 
 RULE_ID = "WML-007"
+TITLE = "Manifest hygiene"
+SUMMARY = (
+    "A tool with no name or no description, two tools sharing a name, or a "
+    "manifest with an empty tool list."
+)
 
 
 def check(manifest) -> list:

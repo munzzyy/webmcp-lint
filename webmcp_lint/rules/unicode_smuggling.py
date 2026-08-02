@@ -11,9 +11,16 @@ building a finding message, so this file's own source stays plain ASCII.
 from __future__ import annotations
 
 from ..finding import Category, Severity
+from ._schema_walk import tool_text_fields
 from ._util import mk
 
 RULE_ID = "WML-008"
+TITLE = "Hidden or deceptive characters in a tool's own text"
+SUMMARY = (
+    "Bidirectional control characters, invisible Unicode tag characters, "
+    "zero-width characters, or raw control/escape characters in a tool name, "
+    "title, description, or a description inside inputSchema."
+)
 
 _INVISIBLE = {
     0x200B: "zero-width space",
@@ -40,8 +47,22 @@ _BIDI = {
 }
 
 
+# Whitespace a JSON string legitimately carries: tab, newline, CR.
+_ALLOWED_CONTROL = (0x09, 0x0A, 0x0D)
+
+
 def _is_tag_char(cp: int) -> bool:
     return 0xE0000 <= cp <= 0xE007F
+
+
+def _control_label(cp: int) -> str:
+    if cp == 0x1B:
+        return "ESC, the start of a terminal escape sequence"
+    if cp == 0x7F:
+        return "delete"
+    if cp >= 0x80:
+        return "C1 control character"
+    return "C0 control character"
 
 
 def _scan(text: str) -> list:
@@ -56,13 +77,17 @@ def _scan(text: str) -> list:
             hits.append((f"U+{cp:04X}", f"bidirectional control character ({_BIDI[cp]})"))
         elif cp in _INVISIBLE:
             hits.append((f"U+{cp:04X}", f"invisible character ({_INVISIBLE[cp]})"))
+        elif cp in _ALLOWED_CONTROL:
+            continue
+        elif cp < 0x20 or cp == 0x7F or 0x80 <= cp <= 0x9F:
+            hits.append((f"U+{cp:04X}", f"control character ({_control_label(cp)})"))
     return hits
 
 
 def check(manifest) -> list:
     findings = []
     for tool in manifest.tools:
-        for field_name, value in (("name", tool.name), ("title", tool.title), ("description", tool.description)):
+        for field_name, value in tool_text_fields(tool):
             hits = _scan(value)
             if not hits:
                 continue
@@ -71,12 +96,13 @@ def check(manifest) -> list:
             more = f" (+{len(hits) - 5} more)" if len(hits) > 5 else ""
             findings.append(mk(
                 RULE_ID, Category.UNICODE, Severity.HIGH, manifest.relpath,
-                f"Hidden Unicode in tool {field_name}",
-                f'"{label}" has hidden or deceptive Unicode in its {field_name}: '
-                f"{shown}{more}. These characters are invisible or reorder how text "
-                "renders, the standard way to smuggle instructions past a human "
-                "reviewer while an agent still reads them.",
-                "Remove the invisible/bidi characters from the field.",
+                f"Hidden characters in {field_name}" if "." in field_name
+                else f"Hidden characters in tool {field_name}",
+                f'"{label}" has hidden or deceptive characters in its {field_name}: '
+                f"{shown}{more}. These are invisible, reorder how text renders, or "
+                "drive the terminal directly - the standard ways to smuggle "
+                "instructions past a human reviewer while an agent still reads them.",
+                "Remove the invisible, bidi, and control characters from the field.",
                 tool=tool.name, tool_index=tool.index,
             ))
     return findings

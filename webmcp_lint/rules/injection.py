@@ -1,4 +1,4 @@
-"""Detect prompt-injection phrasing inside a tool's own name or description.
+"""Detect prompt-injection phrasing inside a tool's own text.
 
 A tool's name, description, and schema are fed to the calling agent as
 trusted context before the tool is ever invoked - that makes them an
@@ -6,6 +6,12 @@ injection surface in their own right ("tool poisoning"). A description that
 tells the agent to ignore its instructions or hide an action from the user
 is the WebMCP equivalent of a backdoor, and it works whether or not the
 tool is ever called.
+
+The scan covers name, title and description, and every `description` and
+`title` inside inputSchema. Those per-parameter strings ship to the model
+with the rest of the tool definition, so dropping the payload one level down
+is the cheapest way around a scanner that only reads the tool description,
+and it is what most published tool-poisoning proofs of concept actually do.
 
 Patterns require an explicit object ("instructions", "the user", "your
 system prompt") so ordinary phrases like "ignore case" or "act as a proxy"
@@ -18,9 +24,16 @@ import re
 import unicodedata
 
 from ..finding import Category, Severity
+from ._schema_walk import tool_text_fields
 from ._util import mk
 
 RULE_ID = "WML-003"
+TITLE = "Prompt injection in a tool's own text"
+SUMMARY = (
+    "A tool name, title, description, or a description inside inputSchema "
+    "that instructs the agent to ignore its instructions, hide an action from "
+    "the user, reveal its system prompt, or adopt a new persona."
+)
 _I = re.IGNORECASE
 # Fold everything except letters, digits, and ':' to a single space. The colon
 # is kept literal because the fake-role-header pattern below matches on it
@@ -41,8 +54,9 @@ _SEPARATORS = re.compile(r"[^A-Za-z0-9:\n]+")
 _BREAK = re.compile(r"[^A-Za-z0-9:]*[.!?][\s\"')\]][^A-Za-z0-9:]*")
 _SENTINEL = "\x00"
 
-# (compiled, title, detail)
-_PATTERNS = (
+# (compiled, title, detail). Public because the aggregate rule (WML-010)
+# re-runs the same set over joined and decoded text.
+PATTERNS = (
     (re.compile(r"\bignore\s+(?:all\s+|any\s+)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding|foregoing)\s+(?:instructions?|prompts?|context|rules?|messages?|directions?)", _I),
      "Instruction-override phrasing",
      "Tells the agent to ignore its previous instructions, a classic prompt-injection payload."),
@@ -77,7 +91,7 @@ _PATTERNS = (
 )
 
 
-def _fold_for_matching(text: str) -> str:
+def fold_for_matching(text: str) -> str:
     """Collapse Unicode look-alikes and separator noise before matching.
 
     NFKC maps "compatibility" variants - fullwidth letters, an ideographic
@@ -108,11 +122,9 @@ def _fold_for_matching(text: str) -> str:
 def check(manifest) -> list:
     findings = []
     for tool in manifest.tools:
-        for field_name, value in (("name", tool.name), ("title", tool.title), ("description", tool.description)):
-            if not value:
-                continue
-            haystack = _fold_for_matching(value)
-            for rx, title, detail in _PATTERNS:
+        for field_name, value in tool_text_fields(tool):
+            haystack = fold_for_matching(value)
+            for rx, title, detail in PATTERNS:
                 if not rx.search(haystack):
                     continue
                 label = tool.name or f"tool #{tool.index}"

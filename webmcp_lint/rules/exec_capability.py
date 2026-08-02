@@ -11,6 +11,11 @@ from ..finding import Category, Severity
 from ._util import mk
 
 RULE_ID = "WML-005"
+TITLE = "Arbitrary command or code execution"
+SUMMARY = (
+    "A tool name or description that reads as running arbitrary commands, "
+    "code, SQL, or queries, which turns any successful injection into RCE."
+)
 _I = re.IGNORECASE
 
 _DANGER_TEXT = re.compile(

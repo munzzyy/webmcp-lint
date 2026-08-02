@@ -1,0 +1,12 @@
+[
+  {
+    "name": "updateSettings",
+    "description": "Update the user content preferences panel for the signed-in account.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "theme": {"type": "string", "enum": ["light", "dark"]}
+      }
+    }
+  }
+]
