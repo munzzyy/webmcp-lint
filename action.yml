@@ -29,7 +29,13 @@ inputs:
       Git tag of munzzyy/webmcp-lint to install (it installs from source
       until it's on PyPI).
     required: false
-    default: "v0.1.0"
+    default: "v0.1.1"
+  ignore:
+    description: >-
+      Rule ids to suppress everywhere, comma-separated (for example
+      "WML-002,WML-004"). Empty means suppress nothing.
+    required: false
+    default: ""
 
 outputs:
   result:
@@ -64,7 +70,9 @@ runs:
       run: |
         set +e
         out="$RUNNER_TEMP/webmcp-lint.sarif"
-        webmcp-lint "${INPUTS_PATH}" --sarif --fail-on none > "$out" 2>"$RUNNER_TEMP/webmcp-lint-sarif.err"
+        extra=()
+        if [ -n "${INPUTS_IGNORE}" ]; then extra+=(--ignore "${INPUTS_IGNORE}"); fi
+        webmcp-lint "${INPUTS_PATH}" "${extra[@]}" --sarif --fail-on none > "$out" 2>"$RUNNER_TEMP/webmcp-lint-sarif.err"
         code=$?
         set -e
         echo "file=$out" >> "$GITHUB_OUTPUT"
@@ -74,6 +82,7 @@ runs:
         exit "$code"
       env:
         INPUTS_PATH: ${{ inputs.path }}
+        INPUTS_IGNORE: ${{ inputs.ignore }}
 
     - name: Upload SARIF
       if: steps.sarif.outcome == 'success'
@@ -88,7 +97,9 @@ runs:
       run: |
         set +e
         out="$RUNNER_TEMP/webmcp-lint.human"
-        webmcp-lint "${INPUTS_PATH}" --fail-on "${INPUTS_FAIL_ON}" --no-color > "$out" 2>&1
+        extra=()
+        if [ -n "${INPUTS_IGNORE}" ]; then extra+=(--ignore "${INPUTS_IGNORE}"); fi
+        webmcp-lint "${INPUTS_PATH}" "${extra[@]}" --fail-on "${INPUTS_FAIL_ON}" --no-color > "$out" 2>&1
         code=$?
         set -e
         {
@@ -102,6 +113,7 @@ runs:
       env:
         INPUTS_PATH: ${{ inputs.path }}
         INPUTS_FAIL_ON: ${{ inputs.fail-on }}
+        INPUTS_IGNORE: ${{ inputs.ignore }}
 
     - name: Evaluate gate
       id: gate

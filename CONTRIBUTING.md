@@ -28,7 +28,9 @@ Every rule change lands with a fixture, so coverage only goes up:
 
 If you fix a bug with no fixture attached, it can silently come back. A fixture is how the fix stays fixed.
 
-New rules also need an entry in `docs/rules.md` with the same `RULE_ID` used in code; a test checks the two stay in sync.
+New rules also need an entry in `docs/rules.md` with the same `RULE_ID` used in code, plus a `TITLE` and `SUMMARY` next to that `RULE_ID` in the module. Tests check all three stay in sync: the doc heading, and the metadata the SARIF output publishes so the GitHub Security tab shows more than a bare rule id.
+
+If a manifest can't be read, say so loudly. A scan that inspected nothing must never grade like a clean one, so parse failures are HIGH, mark the finding `not_scanned`, and floor the grade at F.
 
 Keep rules specific. A pattern that fires on an ordinary tool description is worse than one that misses an edge case, because noise trains people to ignore the tool.
 

@@ -1,9 +1,12 @@
 """docs/rules.md drift check: every RULE_ID in the code appears as a heading
-in the doc, and the doc documents nothing that no longer exists."""
+in the doc, and the doc documents nothing that no longer exists. Also checks
+that every rule carries the metadata the SARIF output publishes."""
 
 import re
 import unittest
 from pathlib import Path
+
+from webmcp_lint.rules import RULE_IDS, RULE_META, RULE_MODULES
 
 ROOT = Path(__file__).parent.parent
 
@@ -35,6 +38,18 @@ class RulesDoc(unittest.TestCase):
 
     def test_doc_is_not_empty(self):
         self.assertGreaterEqual(len(_rule_ids_in_doc()), 5)
+
+    def test_registry_matches_the_rule_modules_on_disk(self):
+        self.assertEqual(set(RULE_IDS), _rule_ids_in_code())
+
+    def test_every_rule_has_sarif_metadata(self):
+        # The Security tab shows a bare rule id without these, so a new rule
+        # that forgets them ships a worse experience than the one it improves.
+        for module in RULE_MODULES:
+            with self.subTest(rule=module.RULE_ID):
+                title, summary = RULE_META[module.RULE_ID]
+                self.assertTrue(title.strip(), "TITLE is empty")
+                self.assertGreater(len(summary.strip()), 20, "SUMMARY is too thin")
 
 
 if __name__ == "__main__":

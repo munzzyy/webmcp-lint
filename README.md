@@ -50,20 +50,32 @@ See the [Rules Reference](docs/rules.md) for the full list, its severity, and ho
 - **WML-005** - a name or description that implies arbitrary command or code execution.
 - **WML-006** - schema validity: malformed JSON, a manifest that isn't a recognized tool list, `inputSchema` that isn't an object or has no `type`.
 - **WML-007** - manifest hygiene: missing name/description, duplicate tool names, an empty tool list.
-- **WML-008** - hidden or deceptive Unicode (bidi overrides, invisible tag characters, zero-width characters) in a name or description.
+- **WML-008** - hidden or deceptive characters (bidi overrides, invisible tag characters, zero-width characters, raw terminal escapes) in a tool's text.
+- **WML-009** - text over Chrome's published size budgets: 30 characters for a tool or parameter name, 500 for a tool description, 150 for a parameter description.
+- **WML-010** - an injection payload no single tool carries: one split across several tool descriptions, or hidden inside a base64, hex, or percent-encoded blob.
+- **WML-011** - a manifest still pointing at `navigator.modelContext`, deprecated in Chrome 150. `document.modelContext` replaced it.
+
+WML-003, WML-008 and WML-009 read the whole `inputSchema`, not only the tool's own fields. A parameter `description` goes to the model with the rest of the tool definition, which makes it the obvious place to hide something.
 
 ## Install
 
-Pure standard library, Python 3.9+, no runtime dependencies. Clone it and it runs:
+Pure standard library, Python 3.9+, no runtime dependencies.
+
+```bash
+pipx install git+https://github.com/munzzyy/webmcp-lint
+webmcp-lint mcp.json
+```
+
+Or clone it and run it in place, no install at all:
 
 ```bash
 git clone https://github.com/munzzyy/webmcp-lint
 cd webmcp-lint
-python -m webmcp_lint examples/example-manifest.json   # run it directly, no install
+python -m webmcp_lint examples/example-manifest.json
 pip install -e .                                        # or install the `webmcp-lint` command
 ```
 
-Once it's on PyPI: `pipx install webmcp-lint`.
+It is not on PyPI, so `pipx install webmcp-lint` will not find it. Install from git until it is.
 
 ## Usage
 
@@ -80,7 +92,7 @@ You can run `webmcp-lint` as a [pre-commit](https://pre-commit.com/) hook. Add t
 ```yaml
 repos:
   - repo: https://github.com/munzzyy/webmcp-lint
-    rev: v0.1.0 # replace with latest tag
+    rev: v0.1.1 # replace with latest tag
     hooks:
       - id: webmcp-lint
 ```
@@ -90,7 +102,7 @@ repos:
 webmcp-lint exits non-zero when it finds something at or above a severity you choose:
 
 ```yaml
-- run: pipx run webmcp-lint mcp.json --fail-on high
+- run: pipx run --spec git+https://github.com/munzzyy/webmcp-lint@v0.1.1 webmcp-lint mcp.json --fail-on high
 ```
 
 `--fail-on` takes `critical`, `high`, `medium`, `low`, `info`, or `none` (default `high`).
@@ -98,7 +110,7 @@ webmcp-lint exits non-zero when it finds something at or above a severity you ch
 It also speaks SARIF, so findings show up in the GitHub Security tab:
 
 ```yaml
-- run: pipx run webmcp-lint mcp.json --sarif > webmcp-lint.sarif
+- run: pipx run --spec git+https://github.com/munzzyy/webmcp-lint@v0.1.1 webmcp-lint mcp.json --sarif > webmcp-lint.sarif
 - uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: webmcp-lint.sarif
@@ -119,15 +131,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: munzzyy/webmcp-lint@v0.1.0
+      - uses: munzzyy/webmcp-lint@v0.1.1
         with:
           path: mcp.json      # file, directory, or glob (default: ".")
           fail-on: high        # default: high
 ```
 
-webmcp-lint isn't on PyPI yet, so the action installs straight from the tagged source; `ref`
-(default `v0.1.0`) picks which tag it installs. SARIF upload always runs with every finding,
-independent of `fail-on` — the threshold only decides whether the job itself passes or fails.
+webmcp-lint isn't on PyPI, so the action installs straight from the tagged source; `ref`
+(default `v0.1.1`) picks which tag it installs. SARIF upload always runs with every finding,
+independent of `fail-on`. The threshold only decides whether the job itself passes or fails.
+
+### Suppressing a finding
+
+The injection and content rules are pattern matching over English, so one of
+them will eventually flag a sentence that happens to use the same words. Turn
+that rule off rather than dropping `--fail-on` and losing the whole gate:
+
+```bash
+webmcp-lint mcp.json --ignore WML-002
+webmcp-lint mcp.json --ignore WML-002,WML-004     # or repeat the flag
+```
+
+A suppressed rule is suppressed everywhere, in the report, the grade, and the
+exit code, so what you see is what CI decides on. An unknown rule id is a
+usage error rather than a silent no-op. The bundled action takes the same list
+as its `ignore` input.
+
+If a rule is wrong rather than noisy for you, please open an issue with the
+manifest that trips it. That is how the corpus grows.
 
 ### Output formats
 
@@ -147,7 +178,8 @@ independent of `fail-on` — the threshold only decides whether the job itself p
 - It's a static scanner over the manifest's own text. It has no idea what a tool's server-side handler actually does when called; it only judges what the manifest promises the agent.
 - A clean grade means nothing in the manifest itself tripped a rule, not that the tool is safe to call. `readOnlyHint` and `untrustedContentHint` are self-reported by whoever wrote the manifest; webmcp-lint checks that they're set where the text implies they should be, not that they're honest.
 - The prompt-injection and content-keyword rules are pattern matching over English phrasing. They catch the direct, common forms and will miss a determined paraphrase or another language, and can occasionally flag an ordinary sentence that happens to use the same words.
-- It expects a WebMCP-shaped manifest (a JSON array of tools, or an object with a `"tools"` array). Point it at an unrelated JSON file and you'll mostly get a WML-006 structure error.
+- It expects a WebMCP-shaped manifest (a JSON array of tools, or an object with a `"tools"` array). Point it at an unrelated JSON file and you get a WML-006 structure error, grade F, and a non-zero exit. That is deliberate: a file the linter could not read has not been checked, and a scan that checked nothing must not look like a pass.
+- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. There is no manifest file in the spec, so the input here is a JSON tool list you produce: an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file. Reading the JS or HTML source directly is not implemented yet.
 
 ## Contributing
 
@@ -155,7 +187,7 @@ Found a manifest that should have been flagged and wasn't, or a false positive? 
 
 ## License
 
-MIT — free to use, change, and ship, commercial or not. See [LICENSE](LICENSE).
+MIT. Free to use, change, and ship, commercial or not. See [LICENSE](LICENSE).
 
 ## Support
 
