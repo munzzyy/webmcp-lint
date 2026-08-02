@@ -1,9 +1,12 @@
 """Turn findings into a security letter grade.
 
 The score starts at 100 and loses points per security finding by severity.
-Two hard caps encode the opinion that matters: any unresolved CRITICAL means
-"do not publish this manifest" (grade F), and any HIGH keeps it out of the
-top band (at most C). Hygiene findings do not affect the security grade.
+Three hard caps encode the opinions that matter. A manifest that could not
+be read at all is an F with a score of zero, because no rule inspected it
+and a scan that inspected nothing must never produce a passing grade. Any
+unresolved CRITICAL means "do not publish this manifest" (also F). Any HIGH
+keeps it out of the top band (at most C). Hygiene and size-budget findings
+do not affect the security grade.
 """
 
 from __future__ import annotations
@@ -20,6 +23,8 @@ _WEIGHT = {
 
 
 def grade(findings) -> tuple[str, int]:
+    if any(getattr(f, "not_scanned", False) for f in findings):
+        return "F", 0
     sec = [f for f in findings if f.category in SECURITY_CATEGORIES]
     score = 100
     n_crit = n_high = 0

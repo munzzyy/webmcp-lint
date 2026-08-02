@@ -36,14 +36,18 @@ class Category(str, enum.Enum):
     SCHEMA = "schema"
     HYGIENE = "hygiene"
     UNICODE = "hidden-unicode"
+    BUDGET = "size-budget"
 
     def __str__(self) -> str:  # nicer output in reports
         return self.value
 
 
 # Categories that count toward the security grade. HYGIENE is manifest
-# housekeeping (duplicate/missing names, empty tool lists), not a security hole.
-SECURITY_CATEGORIES = frozenset(c for c in Category if c is not Category.HYGIENE)
+# housekeeping (duplicate/missing names, empty tool lists) and BUDGET is
+# conformance with Chrome's published size limits, so neither moves the
+# security score on its own.
+_NON_SECURITY = (Category.HYGIENE, Category.BUDGET)
+SECURITY_CATEGORIES = frozenset(c for c in Category if c not in _NON_SECURITY)
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,9 @@ class Finding:
     tool: str = ""  # tool name, or "" if the finding is manifest-level
     tool_index: int = -1  # position in the tools array, -1 if not tool-specific
     remediation: str = ""
+    # True when the manifest could not be read at all, so no rule actually
+    # inspected it. A scan that inspected nothing must never look like a pass.
+    not_scanned: bool = False
 
     def sort_key(self):
         # Worst first, then by location for stable output.

@@ -74,11 +74,21 @@ def load(path: Path) -> Manifest:
         m.parse_error = f"could not read file: {e}"
         return m
 
-    try:
-        m.text = raw.decode("utf-8")
-    except UnicodeDecodeError as e:
-        m.parse_error = f"file is not valid UTF-8: {e}"
+    # Only a prefix was read, so anything downstream would be judging a file
+    # nobody actually looked at. Say that instead of letting json.loads blame
+    # the author for a syntax error that isn't there.
+    if m.oversized:
+        m.parse_error = (
+            f"file is larger than the {MAX_FILE_BYTES}-byte scan limit "
+            f"({size} bytes), so it was not scanned"
+        )
         return m
+
+    text, decode_error = _decode(raw)
+    if decode_error:
+        m.parse_error = decode_error
+        return m
+    m.text = text
 
     try:
         data = json.loads(m.text)
@@ -93,6 +103,33 @@ def load(path: Path) -> Manifest:
 
     m.tools = [_normalize_tool(i, t) for i, t in enumerate(tools_raw)]
     return m
+
+
+_UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
+
+
+def _decode(raw: bytes) -> tuple:
+    """Decode manifest bytes to text, returning (text, error).
+
+    utf-8-sig rather than utf-8: it is identical to utf-8 except that it
+    strips a leading byte-order mark, which json.loads otherwise rejects as
+    a syntax error. Notepad, PowerShell's Out-File and .NET's default
+    encoder all write that BOM, and the manifest they wrote is fine.
+
+    A UTF-16 BOM gets decoded as UTF-16 for the same reason: PowerShell
+    redirection produces UTF-16LE by default, and telling that author their
+    JSON is broken would be wrong twice over.
+    """
+    if raw[:2] in _UTF16_BOMS:
+        try:
+            return raw.decode("utf-16"), ""
+        except UnicodeDecodeError as e:
+            return "", ("file starts with a UTF-16 byte-order mark but is not "
+                        f"valid UTF-16: {e}")
+    try:
+        return raw.decode("utf-8-sig"), ""
+    except UnicodeDecodeError as e:
+        return "", f"file is not valid UTF-8: {e}"
 
 
 def _extract_tools(data) -> tuple:
