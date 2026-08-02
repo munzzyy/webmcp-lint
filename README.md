@@ -157,6 +157,10 @@ exit code, so what you see is what CI decides on. An unknown rule id is a
 usage error rather than a silent no-op. The bundled action takes the same list
 as its `ignore` input.
 
+One thing you cannot suppress: a manifest webmcp-lint could not read. Hiding
+that would turn a file nothing inspected into a clean grade, which is the one
+result this tool must never produce.
+
 If a rule is wrong rather than noisy for you, please open an issue with the
 manifest that trips it. That is how the corpus grows.
 

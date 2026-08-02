@@ -362,6 +362,17 @@ class CLI(unittest.TestCase):
         self.assertNotIn("WML-002", out)
         self.assertNotIn("WML-004", out)
 
+    def test_ignore_cannot_silence_an_unreadable_manifest(self):
+        # Otherwise --ignore WML-006 turns a file nobody inspected into a
+        # clean A, which is the failure the whole not_scanned flag exists for.
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text("{not json", encoding="utf-8")
+        code, out = self._run([str(p), "--ignore", "WML-006", "--no-color"])
+        self.assertEqual(code, 1)
+        self.assertIn("Grade: F", out)
+        self.assertIn("could not be read", out)
+
     def test_unknown_ignore_rule_is_a_usage_error(self):
         # Silently suppressing nothing would leave someone believing they
         # turned a rule off when they did not.
