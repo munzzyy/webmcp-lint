@@ -12,7 +12,8 @@ from webmcp_lint.discovery import resolve_targets
 from webmcp_lint.finding import Category, Finding, Severity
 from webmcp_lint.grade import grade
 from webmcp_lint.manifest import load
-from webmcp_lint.report import render_json, render_sarif
+from webmcp_lint.report import render_human, render_json, render_sarif, sarif_uri
+from webmcp_lint.scanner import scan_files
 from tests._helpers import scan_manifest, scan_raw, scan_tools
 
 
@@ -42,10 +43,60 @@ class ManifestLoading(unittest.TestCase):
     def test_not_utf8(self):
         tmp = Path(tempfile.mkdtemp())
         p = tmp / "mcp.json"
-        p.write_bytes(b"\xff\xfe[bad utf8")
+        p.write_bytes(b"\x80\x81 not text at all")
         m = load(p)
         self.assertFalse(m.ok)
         self.assertIn("UTF-8", m.parse_error)
+
+    def test_broken_utf16_names_utf16(self):
+        # b"\xff\xfe" is a UTF-16LE byte-order mark, so blaming UTF-8 would
+        # send the author looking in the wrong place.
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_bytes(b"\xff\xfe[bad utf8")
+        m = load(p)
+        self.assertFalse(m.ok)
+        self.assertIn("UTF-16", m.parse_error)
+
+    def test_utf8_bom_manifest_parses(self):
+        # Notepad, PowerShell's Out-File and .NET all write a BOM. The
+        # manifest is fine; utf-8 decoding kept the BOM and json.loads then
+        # blamed the author's syntax.
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text('[{"name": "getWeather", "description": "Looks it up."}]',
+                     encoding="utf-8-sig")
+        m = load(p)
+        self.assertTrue(m.ok, m.parse_error or m.structure_error)
+        self.assertEqual(m.tools[0].name, "getWeather")
+
+    def test_utf8_bom_manifest_produces_no_schema_finding(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text('[{"name": "createOrder", "description": "Creates an order."}]',
+                     encoding="utf-8-sig")
+        r = scan_files([p], root=str(p))
+        self.assertEqual([f for f in r.findings if f.rule_id == "WML-006"], [])
+
+    def test_utf16_manifest_parses(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text('[{"name": "getWeather", "description": "Looks it up."}]',
+                     encoding="utf-16")
+        m = load(p)
+        self.assertTrue(m.ok, m.parse_error or m.structure_error)
+
+    def test_oversized_file_says_so_instead_of_blaming_the_json(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        filler = "x" * 200
+        tools = [{"name": f"t{i}", "description": filler} for i in range(9000)]
+        p.write_text(json.dumps(tools), encoding="utf-8")
+        self.assertGreater(p.stat().st_size, 2_000_000)
+        m = load(p)
+        self.assertFalse(m.ok)
+        self.assertIn("scan limit", m.parse_error)
+        self.assertNotIn("invalid JSON", m.parse_error)
 
     def test_no_tools_array(self):
         m = load(self._write('{"name": "not a tool list"}'))
@@ -131,6 +182,15 @@ class Grading(unittest.TestCase):
         g, score = grade([self._f(Severity.MEDIUM) for _ in range(5)])
         self.assertLess(score, 100)
 
+    def test_unread_manifest_floors_at_f(self):
+        f = Finding("WML-006", Category.SCHEMA, Severity.HIGH, "t", "d", "f",
+                    not_scanned=True)
+        self.assertEqual(grade([f]), ("F", 0))
+
+    def test_budget_findings_do_not_count(self):
+        g, score = grade([self._f(Severity.MEDIUM, cat=Category.BUDGET)])
+        self.assertEqual((g, score), ("A", 100))
+
 
 class Reporting(unittest.TestCase):
     def test_json_is_valid_and_complete(self):
@@ -148,6 +208,52 @@ class Reporting(unittest.TestCase):
         driver = doc["runs"][0]["tool"]["driver"]
         self.assertEqual(driver["name"], "webmcp-lint")
         self.assertIn(doc["runs"][0]["results"][0]["level"], ("error", "warning", "note"))
+
+    def test_sarif_rules_carry_metadata_and_a_help_link(self):
+        r = scan_tools([{"name": "runShell", "description": "runs arbitrary shell commands"}])
+        rule = json.loads(render_sarif(r))["runs"][0]["tool"]["driver"]["rules"][0]
+        self.assertTrue(rule["shortDescription"]["text"].strip())
+        self.assertTrue(rule["fullDescription"]["text"].strip())
+        self.assertTrue(rule["helpUri"].endswith("rules.md#" + rule["id"].lower()))
+
+    def test_sarif_results_have_fingerprints(self):
+        r = scan_tools([{"name": "runShell", "description": "runs arbitrary shell commands"}])
+        result = json.loads(render_sarif(r))["runs"][0]["results"][0]
+        self.assertTrue(result["partialFingerprints"]["webmcpLintFinding/v1"])
+
+    def test_sarif_uri_has_no_backslashes(self):
+        # A SARIF uri is a URI reference. A Windows path with backslashes in it
+        # either mislocates the alert or gets rejected outright.
+        self.assertEqual(sarif_uri("tests\\corpus\\x.json"), "tests/corpus/x.json")
+
+    def test_sarif_uri_handles_an_empty_path(self):
+        self.assertEqual(sarif_uri(""), "unknown")
+
+    def test_human_report_escapes_terminal_control_characters(self):
+        # A manifest that can erase the report already printed and repaint a
+        # green "SAFE" line is what SECURITY.md puts in scope.
+        esc = chr(0x1B)
+        name = "getData" + esc + "[2K" + esc + "[1A" + esc + "[32mSAFE" + esc + "[0m"
+        r = scan_tools([{"name": name, "description": "Reads a value."}])
+        out = render_human(r, color=False)
+        self.assertNotIn(esc, out)
+        self.assertIn("\\x1b", out)
+
+    def test_human_report_flags_a_manifest_it_could_not_read(self):
+        r = scan_raw("{not json")
+        out = render_human(r, color=False)
+        self.assertIn("could not be read", out)
+
+    def test_human_report_survives_a_cp1252_stream(self):
+        # Windows with output redirected encodes stdout as cp1252, and the
+        # report died on U+202E, the exact character WML-008 exists to catch.
+        r = scan_tools([{"name": "delete" + chr(0x202E) + "evil",
+                         "description": "Deletes a record."}])
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252", errors="backslashreplace")
+        stream.write(render_human(r, color=False))
+        stream.flush()
+        self.assertIn(b"202e", raw.getvalue().lower())
 
 
 class CLI(unittest.TestCase):
@@ -199,9 +305,14 @@ class CLI(unittest.TestCase):
         code, _ = self._run(["/no/such/path/here.json", "--no-color"])
         self.assertEqual(code, 2)
 
-    def test_invalid_fail_on(self):
-        with self.assertRaises(SystemExit):
-            self._run(["/tmp", "--fail-on", "not-a-severity"])
+    def test_invalid_fail_on_is_a_usage_error(self):
+        # Exit 1 is "a finding at or above the threshold was found", so a
+        # misspelled threshold used to look like a dirty manifest.
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text("[]", encoding="utf-8")
+        code, _ = self._run([str(p), "--fail-on", "not-a-severity"])
+        self.assertEqual(code, 2)
 
     def test_quiet_mode(self):
         tmp = Path(tempfile.mkdtemp())
@@ -209,6 +320,56 @@ class CLI(unittest.TestCase):
         p.write_text(json.dumps([{"name": "a", "description": "d"}]), encoding="utf-8")
         code, out = self._run([str(p), "--quiet", "--fail-on", "none"])
         self.assertIn("/100", out)
+
+    def test_quiet_with_json_is_rejected(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text("[]", encoding="utf-8")
+        with self.assertRaises(SystemExit) as ctx:
+            self._run([str(p), "--quiet", "--json"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_unparseable_manifest_fails_the_default_gate(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text("{not json", encoding="utf-8")
+        code, out = self._run([str(p), "--no-color"])
+        self.assertEqual(code, 1)
+        self.assertIn("Grade: F", out)
+
+    def test_ignore_changes_the_grade_and_the_exit_code(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text(json.dumps([{
+            "name": "runCommand", "description": "Runs any arbitrary shell command.",
+        }]), encoding="utf-8")
+        code, _ = self._run([str(p), "--no-color"])
+        self.assertEqual(code, 1)
+        code, out = self._run([str(p), "--ignore", "WML-005", "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertIn("Grade: A", out)
+
+    def test_ignore_accepts_a_comma_separated_list(self):
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text(json.dumps([{
+            "name": "scrapePage",
+            "description": "Scrapes a page and returns raw HTML content.",
+            "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}},
+        }]), encoding="utf-8")
+        code, out = self._run([str(p), "--ignore", "WML-002,WML-004", "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("WML-002", out)
+        self.assertNotIn("WML-004", out)
+
+    def test_unknown_ignore_rule_is_a_usage_error(self):
+        # Silently suppressing nothing would leave someone believing they
+        # turned a rule off when they did not.
+        tmp = Path(tempfile.mkdtemp())
+        p = tmp / "mcp.json"
+        p.write_text("[]", encoding="utf-8")
+        code, _ = self._run([str(p), "--ignore", "WML-999"])
+        self.assertEqual(code, 2)
 
 
 if __name__ == "__main__":
