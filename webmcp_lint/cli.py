@@ -30,6 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="a manifest file, a directory (looks for mcp.json / webmcp.json / "
              ".well-known/mcp.json inside it), or a glob pattern",
     )
+    p.add_argument(
+        "--recursive", "-r", action="store_true",
+        help="when the target is a directory, also look inside its subdirectories "
+             "(skips node_modules, .git, dist, build, venv, .venv, __pycache__, .tox)",
+    )
     out = p.add_mutually_exclusive_group()
     out.add_argument("--json", action="store_true", help="machine-readable JSON output")
     out.add_argument("--sarif", action="store_true", help="SARIF 2.1.0 (for GitHub code scanning)")
@@ -120,7 +125,7 @@ def main(argv=None) -> int:
         print(f"webmcp-lint: {e}", file=sys.stderr)
         return 2
 
-    targets = resolve_targets(args.target)
+    targets = resolve_targets(args.target, recursive=args.recursive)
     if not targets:
         print(f"webmcp-lint: no manifest file(s) matched {args.target!r}", file=sys.stderr)
         return 2

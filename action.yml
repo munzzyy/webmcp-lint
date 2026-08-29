@@ -20,6 +20,13 @@ inputs:
       .well-known/mcp.json inside it), or glob pattern to scan.
     required: false
     default: "."
+  recursive:
+    description: >-
+      When "path" is a directory, also look inside its subdirectories
+      ("true"/"false"). Useful for a monorepo with the manifest nested a
+      few levels down.
+    required: false
+    default: "false"
   fail-on:
     description: "Minimum severity that fails the job (critical|high|medium|low|info|none)."
     required: false
@@ -72,6 +79,7 @@ runs:
         out="$RUNNER_TEMP/webmcp-lint.sarif"
         extra=()
         if [ -n "${INPUTS_IGNORE}" ]; then extra+=(--ignore "${INPUTS_IGNORE}"); fi
+        if [ "${INPUTS_RECURSIVE}" = "true" ]; then extra+=(--recursive); fi
         webmcp-lint "${INPUTS_PATH}" "${extra[@]}" --sarif --fail-on none > "$out" 2>"$RUNNER_TEMP/webmcp-lint-sarif.err"
         code=$?
         set -e
@@ -83,6 +91,7 @@ runs:
       env:
         INPUTS_PATH: ${{ inputs.path }}
         INPUTS_IGNORE: ${{ inputs.ignore }}
+        INPUTS_RECURSIVE: ${{ inputs.recursive }}
 
     - name: Upload SARIF
       if: steps.sarif.outcome == 'success'
@@ -99,6 +108,7 @@ runs:
         out="$RUNNER_TEMP/webmcp-lint.human"
         extra=()
         if [ -n "${INPUTS_IGNORE}" ]; then extra+=(--ignore "${INPUTS_IGNORE}"); fi
+        if [ "${INPUTS_RECURSIVE}" = "true" ]; then extra+=(--recursive); fi
         webmcp-lint "${INPUTS_PATH}" "${extra[@]}" --fail-on "${INPUTS_FAIL_ON}" --no-color > "$out" 2>&1
         code=$?
         set -e
@@ -114,6 +124,7 @@ runs:
         INPUTS_PATH: ${{ inputs.path }}
         INPUTS_FAIL_ON: ${{ inputs.fail-on }}
         INPUTS_IGNORE: ${{ inputs.ignore }}
+        INPUTS_RECURSIVE: ${{ inputs.recursive }}
 
     - name: Evaluate gate
       id: gate

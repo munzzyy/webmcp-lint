@@ -6,8 +6,22 @@ from pathlib import Path
 
 from .finding import ScanResult
 from .grade import grade
-from .manifest import load
+from .jsextract import JS_EXTENSIONS
+from .jsextract import load as load_js
+from .manifest import load as load_json
 from .rules import run_all
+
+
+def _load(path: Path):
+    """Route a target to the manifest loader for its kind of file.
+
+    A JS/HTML file has no manifest to parse as JSON at all, so it goes
+    through the best-effort registerTool(...) extractor instead; everything
+    else is read as a JSON manifest same as always.
+    """
+    if path.suffix.lower() in JS_EXTENSIONS:
+        return load_js(path)
+    return load_json(path)
 
 
 def scan_files(paths, root: str = "", ignore=()) -> ScanResult:
@@ -27,7 +41,7 @@ def scan_files(paths, root: str = "", ignore=()) -> ScanResult:
     result = ScanResult(root=root or ", ".join(str(p) for p in paths))
     result.manifests = len(paths)
     for p in paths:
-        m = load(Path(p))
+        m = _load(Path(p))
         result.scanned_files += 1
         result.tools += len(m.tools)
         result.findings.extend(

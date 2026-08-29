@@ -82,8 +82,13 @@ It is not on PyPI, so `pipx install webmcp-lint` will not find it. Install from 
 ```bash
 webmcp-lint mcp.json                    # scan a single manifest file
 webmcp-lint ./public                    # looks for mcp.json / webmcp.json / .well-known/mcp.json inside
+webmcp-lint ./public --recursive        # also looks inside subdirectories
 webmcp-lint "manifests/*.json"          # glob, expanded by the tool (works on Windows too)
 ```
+
+`--recursive` (or `-r`) makes a directory target check every subdirectory too, skipping `node_modules`, `.git`, `dist`, `build`, `venv`, `.venv`, `__pycache__`, and `.tox`. Useful for a monorepo where the manifest lives a few levels down, e.g. `apps/web/mcp.json`. A top-level manifest always wins if there is one; `--recursive` only adds nested ones alongside it.
+
+If a directory has none of the well-known JSON names at all, webmcp-lint falls back to checking its `index.html`, `index.htm`, `mcp.js`, and `webmcp.js` for a `registerTool(...)` call, since most real WebMCP tools live in JavaScript with no manifest file to point at (see the next section).
 
 ### pre-commit
 
@@ -135,11 +140,23 @@ jobs:
         with:
           path: mcp.json      # file, directory, or glob (default: ".")
           fail-on: high        # default: high
+          recursive: "false"   # also check subdirectories (default: "false")
 ```
 
 webmcp-lint isn't on PyPI, so the action installs straight from the tagged source; `ref`
 (default `v0.1.1`) picks which tag it installs. SARIF upload always runs with every finding,
 independent of `fail-on`. The threshold only decides whether the job itself passes or fails.
+
+### Scanning JS or HTML source directly
+
+There's no manifest file in the WebMCP spec: a page registers each tool at runtime with `document.modelContext.registerTool({...})`, and most real sites never produce a JSON file at all. Point webmcp-lint at that source instead:
+
+```bash
+webmcp-lint public/index.html
+webmcp-lint src/tools.js
+```
+
+This is best effort, not a JS parser. It's a bracket-matching scanner that finds each `registerTool(` call and reads the object literal passed to it, tolerating single quotes, unquoted keys, and trailing commas along the way. A tool built from a variable, a spread, or a template literal with `${...}` interpolation is invisible to it and gets silently skipped rather than half-parsed into something wrong, so treat a clean result on heavily dynamic or minified JS as "nothing found" rather than "nothing wrong". A JSON manifest, when you have one, will always be scanned more completely.
 
 ### Suppressing a finding
 
@@ -183,7 +200,7 @@ manifest that trips it. That is how the corpus grows.
 - A clean grade means nothing in the manifest itself tripped a rule, not that the tool is safe to call. `readOnlyHint` and `untrustedContentHint` are self-reported by whoever wrote the manifest; webmcp-lint checks that they're set where the text implies they should be, not that they're honest.
 - The prompt-injection and content-keyword rules are pattern matching over English phrasing. They catch the direct, common forms and will miss a determined paraphrase or another language, and can occasionally flag an ordinary sentence that happens to use the same words.
 - It expects a WebMCP-shaped manifest (a JSON array of tools, or an object with a `"tools"` array). Point it at an unrelated JSON file and you get a WML-006 structure error, grade F, and a non-zero exit. That is deliberate: a file the linter could not read has not been checked, and a scan that checked nothing must not look like a pass.
-- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. There is no manifest file in the spec, so the input here is a JSON tool list you produce: an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file. Reading the JS or HTML source directly is not implemented yet.
+- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. You can point webmcp-lint at a JSON tool list you produce (an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file), or at the JS/HTML source itself. The source scanner is a bracket-matching best effort, not a JS parser: it reads a literal object argument and nothing more, so a tool assembled from a variable, a spread, or a template literal with interpolation is invisible to it. A JSON manifest is always the more complete input.
 
 ## Contributing
 

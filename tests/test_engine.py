@@ -156,6 +156,57 @@ class TargetResolution(unittest.TestCase):
     def test_no_match(self):
         self.assertEqual(resolve_targets("/no/such/path/*.json"), [])
 
+    def test_nested_manifest_not_found_without_recursive(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "apps" / "web").mkdir(parents=True)
+        (tmp / "apps" / "web" / "mcp.json").write_text("[]", encoding="utf-8")
+        self.assertEqual(resolve_targets(str(tmp)), [])
+
+    def test_nested_manifest_found_with_recursive(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "apps" / "web").mkdir(parents=True)
+        nested = tmp / "apps" / "web" / "mcp.json"
+        nested.write_text("[]", encoding="utf-8")
+        found = resolve_targets(str(tmp), recursive=True)
+        self.assertEqual(found, [nested])
+
+    def test_recursive_still_prefers_top_level_manifest(self):
+        tmp = Path(tempfile.mkdtemp())
+        top = tmp / "mcp.json"
+        top.write_text("[]", encoding="utf-8")
+        (tmp / "apps").mkdir()
+        (tmp / "apps" / "webmcp.json").write_text("[]", encoding="utf-8")
+        found = resolve_targets(str(tmp), recursive=True)
+        self.assertEqual(sorted(found), sorted([top, tmp / "apps" / "webmcp.json"]))
+
+    def test_recursive_skips_node_modules(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "node_modules" / "some-pkg").mkdir(parents=True)
+        (tmp / "node_modules" / "some-pkg" / "mcp.json").write_text("[]", encoding="utf-8")
+        self.assertEqual(resolve_targets(str(tmp), recursive=True), [])
+
+    def test_directory_falls_back_to_js_entry_when_it_declares_tools(self):
+        tmp = Path(tempfile.mkdtemp())
+        entry = tmp / "index.html"
+        entry.write_text(
+            "<script>document.modelContext.registerTool({name: 'a'});</script>",
+            encoding="utf-8")
+        self.assertEqual(resolve_targets(str(tmp)), [entry])
+
+    def test_directory_ignores_js_entry_with_no_registerTool(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "index.html").write_text("<html>an ordinary page</html>", encoding="utf-8")
+        self.assertEqual(resolve_targets(str(tmp)), [])
+
+    def test_json_manifest_wins_over_js_fallback(self):
+        tmp = Path(tempfile.mkdtemp())
+        manifest = tmp / "mcp.json"
+        manifest.write_text("[]", encoding="utf-8")
+        (tmp / "index.html").write_text(
+            "<script>document.modelContext.registerTool({name: 'a'});</script>",
+            encoding="utf-8")
+        self.assertEqual(resolve_targets(str(tmp)), [manifest])
+
 
 class Grading(unittest.TestCase):
     def _f(self, sev, cat=Category.EXEC):
@@ -336,6 +387,24 @@ class CLI(unittest.TestCase):
         code, out = self._run([str(p), "--no-color"])
         self.assertEqual(code, 1)
         self.assertIn("Grade: F", out)
+
+    def test_recursive_flag_finds_a_nested_manifest(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "apps" / "web").mkdir(parents=True)
+        (tmp / "apps" / "web" / "mcp.json").write_text(
+            json.dumps([{"name": "a", "description": "d"}]), encoding="utf-8")
+        code, _ = self._run([str(tmp), "--no-color"])
+        self.assertEqual(code, 2)  # nothing at the top level without --recursive
+        code, out = self._run([str(tmp), "--recursive", "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertIn("1 manifest(s)", out)
+
+    def test_directory_without_recursive_flag_ignores_nested_manifest(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "apps").mkdir()
+        (tmp / "apps" / "mcp.json").write_text("[]", encoding="utf-8")
+        code, _ = self._run([str(tmp), "--no-color"])
+        self.assertEqual(code, 2)
 
     def test_ignore_changes_the_grade_and_the_exit_code(self):
         tmp = Path(tempfile.mkdtemp())

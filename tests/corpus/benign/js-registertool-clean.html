@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head><title>Weather widget</title></head>
+<body>
+<script>
+  document.modelContext.registerTool({
+    name: "getWeather",
+    description: "Returns the current weather for a given city.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        city: {type: "string", maxLength: 64},
+      },
+    },
+    annotations: {readOnlyHint: true},
+  });
+</script>
+</body>
+</html>

@@ -14,6 +14,17 @@ from webmcp_lint.scanner import scan_files
 
 CORPUS = Path(__file__).parent / "corpus"
 
+# JSON manifests plus JS/HTML source scanned via jsextract.py - a fixture in
+# either form gets the same recall/precision floor.
+_FIXTURE_GLOBS = ("*.json", "*.html", "*.js")
+
+
+def _corpus_paths(kind: str):
+    paths = []
+    for pattern in _FIXTURE_GLOBS:
+        paths.extend((CORPUS / kind).glob(pattern))
+    return sorted(paths)
+
 
 def _security_worst(result):
     sev = [f.severity for f in result.findings if f.category in SECURITY_CATEGORIES]
@@ -68,7 +79,7 @@ GENERATED = (_hidden_unicode_fixture, _hidden_unicode_in_param_fixture,
 
 class MaliciousRecall(unittest.TestCase):
     def test_every_malicious_manifest_is_flagged(self):
-        paths = sorted((CORPUS / "malicious").glob("*.json"))
+        paths = _corpus_paths("malicious")
         paths.extend(make() for make in GENERATED)
         self.assertTrue(paths, "no malicious fixtures found")
         for path in paths:
@@ -86,7 +97,7 @@ class MaliciousRecall(unittest.TestCase):
 
 class BenignPrecision(unittest.TestCase):
     def test_every_benign_manifest_is_clean(self):
-        paths = sorted((CORPUS / "benign").glob("*.json"))
+        paths = _corpus_paths("benign")
         self.assertTrue(paths, "no benign fixtures found")
         for path in paths:
             with self.subTest(manifest=path.name):
