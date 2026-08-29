@@ -91,6 +91,21 @@ class UntrustedContentRule(unittest.TestCase):
         f = by_rule(r, "WML-002")
         self.assertTrue(f and "not the boolean true" in f[0].detail)
 
+    def test_readOnlyHint_does_not_stand_in_for_untrustedContentHint(self):
+        # WML-001 and WML-002 check two different annotations for two
+        # different risks. A tool marked readOnlyHint: true is still handing
+        # back external content the agent will read as trusted context if
+        # untrustedContentHint is never set, so readOnlyHint being true must
+        # not suppress this rule's finding.
+        r = scan_tools([{
+            "name": "fetchPage",
+            "description": "Fetches the page at the given URL and returns raw HTML.",
+            "annotations": {"readOnlyHint": True},
+        }])
+        self.assertEqual(by_rule(r, "WML-001"), [])  # already satisfied, correctly quiet
+        f = by_rule(r, "WML-002")
+        self.assertTrue(f and f[0].severity == Severity.HIGH)
+
 
 class InjectionRule(unittest.TestCase):
     def test_ignore_previous_instructions(self):

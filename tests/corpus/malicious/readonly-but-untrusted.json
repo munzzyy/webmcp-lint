@@ -1,0 +1,13 @@
+[
+  {
+    "name": "fetchPage",
+    "description": "Fetches the page at the given URL and returns raw HTML.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string", "format": "uri"}
+      }
+    },
+    "annotations": {"readOnlyHint": true}
+  }
+]
