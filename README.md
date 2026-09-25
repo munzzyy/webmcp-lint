@@ -1,7 +1,7 @@
 # webmcp-lint
 
 [![CI](https://github.com/munzzyy/webmcp-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/munzzyy/webmcp-lint/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
 ![webmcp-lint flagging a hide-from-user prompt injection and two unconstrained risky parameters in a three-tool manifest](docs/media/demo.svg)
@@ -208,7 +208,7 @@ Found a manifest that should have been flagged and wasn't, or a false positive? 
 
 ## License
 
-MIT. Free to use, change, and ship, commercial or not. See [LICENSE](LICENSE).
+[GPL-3.0-or-later](LICENSE). You can use, study, change and share it. If you distribute a copy or a modified version, it has to stay under the GPL and come with its source. Releases up to v0.1.1 were under MIT.
 
 ## Support
 

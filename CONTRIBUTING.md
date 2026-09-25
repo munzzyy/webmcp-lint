@@ -40,4 +40,4 @@ webmcp-lint has no runtime dependencies and that's a feature. If a change needs 
 
 ## License
 
-By opening a PR you agree your contribution is offered under the project's MIT license.
+By opening a PR you agree your contribution is offered under the project's GPL-3.0-or-later license.
