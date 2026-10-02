@@ -3,9 +3,11 @@
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from webmcp_lint import cli
 from webmcp_lint.discovery import resolve_targets
@@ -13,6 +15,7 @@ from webmcp_lint.finding import Category, Finding, Severity
 from webmcp_lint.grade import grade
 from webmcp_lint.manifest import load
 from webmcp_lint.report import render_human, render_json, render_sarif, sarif_uri
+from webmcp_lint.rules import run_all
 from webmcp_lint.scanner import scan_files
 from tests._helpers import scan_manifest, scan_raw, scan_tools
 
@@ -126,6 +129,75 @@ class ManifestLoading(unittest.TestCase):
         m = load(Path("/no/such/manifest/mcp.json"))
         self.assertFalse(m.ok)
         self.assertIn("stat", m.parse_error)
+
+    def test_deeply_nested_json_is_unread_not_a_crash(self):
+        m = load(self._write("[" * 100000 + "]" * 100000))
+        self.assertFalse(m.ok)
+        self.assertTrue(m.too_deep)
+        self.assertIn("nested too deeply", m.parse_error)
+
+
+def _deep_json(tmp: Path) -> Path:
+    p = tmp / "deep.json"
+    p.write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+    return p
+
+
+class HostileInput(unittest.TestCase):
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_deep_json_is_an_f_with_one_finding(self):
+        p = _deep_json(Path(tempfile.mkdtemp()))
+        for extra in ([], ["--ignore", "WML-006"]):
+            with self.subTest(extra=extra):
+                code, out, err = self._run([str(p), "--no-color"] + extra)
+                self.assertEqual(code, 1)
+                self.assertNotIn("Traceback", err)
+                self.assertIn("could not be read", out)
+                self.assertIn("Grade: F  (0/100)", out)
+                self.assertEqual(out.count("[WML-006"), 1)
+                self.assertIn("1 high", out)
+
+    def test_deep_json_does_not_wipe_out_the_rest_of_a_glob(self):
+        tmp = Path(tempfile.mkdtemp())
+        _deep_json(tmp)
+        shutil.copy(Path(__file__).parent / "corpus" / "malicious" / "prompt-injection.json",
+                    tmp / "a.json")
+        code, out, err = self._run([str(tmp / "*.json"), "--json", "--fail-on", "none"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("Traceback", err)
+        payload = json.loads(out)
+        self.assertEqual(payload["manifests"], 2)
+        unread = [f for f in payload["findings"] if f["not_scanned"]]
+        self.assertEqual([Path(f["file"]).name for f in unread], ["deep.json"])
+        self.assertTrue(any(f["rule_id"] == "WML-003" and Path(f["file"]).name == "a.json"
+                            for f in payload["findings"]))
+
+    def test_a_crash_in_one_file_becomes_a_finding_for_that_file(self):
+        tmp = Path(tempfile.mkdtemp())
+        bad, good = tmp / "bad.json", tmp / "good.json"
+        bad.write_text('[{"name": "a", "description": "d"}]', encoding="utf-8")
+        shutil.copy(Path(__file__).parent / "corpus" / "malicious" / "prompt-injection.json", good)
+        real_run_all = run_all
+
+        def flaky(manifest):
+            if manifest.path.name == "bad.json":
+                raise RuntimeError("boom")
+            return real_run_all(manifest)
+
+        with mock.patch("webmcp_lint.scanner.run_all", flaky):
+            r = scan_files([bad, good], ignore=["WML-006"])
+        crash = [f for f in r.findings if f.not_scanned]
+        self.assertEqual(len(crash), 1)
+        self.assertEqual(Path(crash[0].file).name, "bad.json")
+        self.assertIn("RuntimeError", crash[0].detail)
+        self.assertEqual(crash[0].severity, Severity.HIGH)
+        self.assertTrue(any(f.rule_id == "WML-003" for f in r.findings))
+        self.assertEqual((r.grade, r.grade_score), ("F", 0))
 
 
 class TargetResolution(unittest.TestCase):

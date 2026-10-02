@@ -115,7 +115,7 @@ Schema and manifest-structure validity. Severity low to medium.
 
 Covers a manifest that isn't valid JSON, JSON that isn't a recognized tool
 list (a bare array of tools, or an object with a `"tools"` array), a file
-too large to scan, an `inputSchema` that isn't a JSON object, an
+too large to scan or nested too deeply to parse, an `inputSchema` that isn't a JSON object, an
 `inputSchema` object with no `type` and no
 `allOf`/`anyOf`/`oneOf`/`$ref`/`const`/`enum`, and an annotation set to
 something other than a JSON boolean.
@@ -129,6 +129,10 @@ literal (a variable, a spread, a value built at runtime) cannot be checked.
 Next to calls that could be read, it is reported **high** with its line
 number, and `--ignore` cannot drop it. If no call in the file could be read,
 the file counts as unread and grades F.
+
+If scanning one file crashes webmcp-lint, that file gets a **high** finding
+naming the error and grades F, and the other files in the run are still
+reported. A crash is a bug in webmcp-lint, so please report it.
 
 An annotation written as the string `"true"` instead of the boolean `true`
 is reported low. Every consumer reads it as unset, and this is what a

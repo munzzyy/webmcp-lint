@@ -266,6 +266,35 @@ class UnreadableCallSites(unittest.TestCase):
         self.assertEqual(self._run([str(path), "--no-color"]), 1)
 
 
+class DeepNesting(unittest.TestCase):
+    DEEP = ("document.modelContext.registerTool({name: 'a', description: 'd', inputSchema: "
+            + "{x:" * 100000 + "1" + "}" * 100000 + "});")
+
+    def test_deep_literal_is_unread_not_a_crash(self):
+        calls = scan_source(self.DEEP)
+        self.assertEqual(len(calls), 1)
+        self.assertIsNone(calls[0].tool)
+        self.assertIn("nested more than", calls[0].problem)
+
+    def test_deep_literal_file_is_an_f_even_under_ignore(self):
+        path = _write(self.DEEP, name="deep.js")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main([str(path), "--ignore", "WML-006", "--no-color"])
+        self.assertEqual(code, 1)
+        self.assertIn("Grade: F  (0/100)", out.getvalue())
+        self.assertIn("could not be read", out.getvalue())
+
+    def test_the_cap_counts_the_tool_object_itself(self):
+        from webmcp_lint.jsextract import MAX_NESTING
+
+        def nested(inner):
+            return "registerTool({name: 'a', s: " + "{x:" * inner + "1" + "}" * inner + "});"
+
+        self.assertEqual(len(extract_tools(nested(MAX_NESTING - 1))), 1)
+        self.assertEqual(extract_tools(nested(MAX_NESTING)), [])
+
+
 class Fixtures(unittest.TestCase):
     def test_execute_fixture_reads_both_tools(self):
         path = CORPUS / "benign" / "js-registertool-execute.html"

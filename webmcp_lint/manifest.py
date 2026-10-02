@@ -52,6 +52,7 @@ class Manifest:
     structure_error: str = ""  # set if the JSON parsed but isn't a recognized tool list
     tools: list = field(default_factory=list)  # list[Tool]
     oversized: bool = False  # bigger than MAX_FILE_BYTES; only the prefix was read
+    too_deep: bool = False  # nested deeper than the JSON decoder can recurse
     source: bool = False  # read from JS/HTML source by jsextract, not a JSON manifest
     unread_calls: list = field(default_factory=list)  # (line, reason) per registerTool call jsextract could not read
 
@@ -96,6 +97,10 @@ def load(path: Path) -> Manifest:
         data = json.loads(m.text)
     except json.JSONDecodeError as e:
         m.parse_error = f"invalid JSON: {e}"
+        return m
+    except RecursionError:
+        m.too_deep = True
+        m.parse_error = "the JSON is nested too deeply to parse"
         return m
 
     tools_raw, err = _extract_tools(data)

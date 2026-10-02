@@ -10,6 +10,7 @@ from .jsextract import JS_EXTENSIONS
 from .jsextract import load as load_js
 from .manifest import load as load_json
 from .rules import run_all
+from .rules.schema import crashed
 
 
 def _load(path: Path):
@@ -42,11 +43,18 @@ def scan_files(paths, root: str = "", ignore=()) -> ScanResult:
     result = ScanResult(root=root or ", ".join(str(p) for p in paths))
     result.manifests = len(paths)
     for p in paths:
-        m = _load(Path(p))
+        path = Path(p)
+        try:
+            m = _load(path)
+            found = run_all(m)
+            tools = len(m.tools)
+        except Exception as e:  # one hostile file must not end the run for the others
+            found = [crashed(str(path), e)]
+            tools = 0
         result.scanned_files += 1
-        result.tools += len(m.tools)
+        result.tools += tools
         result.findings.extend(
-            f for f in run_all(m)
+            f for f in found
             if f.not_scanned or f.partial or f.rule_id.upper() not in ignored)
     result.findings.sort(key=lambda f: f.sort_key())
     result.grade, result.grade_score = grade(result.findings)

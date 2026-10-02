@@ -39,15 +39,21 @@ def check(manifest) -> list:
     source = getattr(manifest, "source", False)
     if manifest.parse_error:
         oversized = getattr(manifest, "oversized", False)
+        too_deep = getattr(manifest, "too_deep", False)
         if oversized:
-            fix = "Split the file so it fits under the scan limit."
+            title, fix = "Manifest too large to scan", "Split the file so it fits under the scan limit."
+        elif too_deep:
+            title = "Manifest is nested too deeply to scan"
+            fix = "Flatten the manifest. No real tool list nests anywhere near this deep."
         elif source:
+            title = "Manifest is not valid JSON"
             fix = "Make sure the file exists, is readable, and is saved as UTF-8."
         else:
+            title = "Manifest is not valid JSON"
             fix = "Fix the JSON syntax so the manifest can be read by a browser or agent."
         findings.append(mk(
             RULE_ID, Category.SCHEMA, Severity.HIGH, manifest.relpath,
-            "Manifest too large to scan" if oversized else "Manifest is not valid JSON",
+            title,
             f"The manifest could not be parsed, so no rule inspected it: {manifest.parse_error}",
             fix,
             not_scanned=True,
@@ -103,6 +109,18 @@ def check(manifest) -> list:
                 tool=tool.name, tool_index=tool.index,
             ))
     return findings
+
+
+def crashed(relpath: str, exc: BaseException):
+    """The finding for a file whose scan raised, so the run can go on."""
+    return mk(
+        RULE_ID, Category.SCHEMA, Severity.HIGH, relpath,
+        "Manifest could not be scanned",
+        f"Scanning this file stopped with {type(exc).__name__}, so no rule inspected it. "
+        "That is a bug in webmcp-lint, not in the manifest.",
+        "Please open an issue with this file attached so the crash can be fixed.",
+        not_scanned=True,
+    )
 
 
 def _annotation_types(manifest, tool, label: str) -> list:
