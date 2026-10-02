@@ -54,6 +54,12 @@ disregard its instructions, hide an action from the user, reveal its
 system prompt, or adopt a new persona, plus a fake `system:`/`assistant:`
 role header used to smuggle a chat-role message into the field.
 
+Hide-from-user phrasing is matched with or without a contraction (`do not
+tell the user`, `don't tell the user`, `don't let the user know`, `without
+letting the user know`). A possessive is left alone: `never show the
+user's card number` is a tool protecting the user, not hiding something
+from them.
+
 Scanned fields: `name`, `title`, `description`, and every `description` and
 `title` inside `inputSchema`, at any depth. Those per-parameter strings go
 to the model with the rest of the tool definition, so hiding the payload one

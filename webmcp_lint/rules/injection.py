@@ -126,10 +126,16 @@ PATTERNS = (
     (re.compile(r"\boverride\s+(?:your|the|all|any|previous|system)\s+(?:instructions?|guidelines?|rules?|safety|system\s+prompt|restrictions?|settings?)", _I),
      "Instruction-override phrasing",
      "Tells the agent to override its guidelines, safety, or system prompt."),
-    (re.compile(r"\b(?:do\s+not|must\s+not|never)\s+(?:tell|inform|mention|alert|notify|warn|show)\s+(?:the\s+)?user\b", _I),
+    # Folding turns "Don't" into "Don t" and "the user's" into "the user s".
+    # The possessive is excluded because "never show the user's card number"
+    # is a tool protecting the user, not hiding something from them.
+    (re.compile(r"\b(?:do\s+not|don\s+t|must\s+not|mustn\s+t|never)\s+"
+                r"(?:(?:tell|inform|mention|alert|notify|warn|show)\s+(?:the\s+)?user\b(?!\s+s\b)"
+                r"|let\s+(?:the\s+)?user\s+(?:know|see|notice)\b)", _I),
      "Hide-from-user directive",
      "Instructs the agent to conceal an action or result from the user."),
-    (re.compile(r"\bwithout\s+(?:telling|informing|notifying|asking|alerting)\s+(?:the\s+)?(?:user|them|him|her)\b", _I),
+    (re.compile(r"\bwithout\s+(?:(?:telling|informing|notifying|asking|alerting)\s+(?:the\s+)?(?:user|them|him|her)\b"
+                r"|letting\s+(?:the\s+)?(?:user|them|him|her)\s+know\b)", _I),
      "Act-without-consent directive",
      "Instructs the agent to act without informing or asking the user."),
     (re.compile(r"\b(?:reveal|print|show|repeat|output|disclose|leak|dump)\s+(?:your|the|its)\s+(?:system\s+prompt|initial\s+instructions|instructions|prompt)\b", _I),

@@ -1,0 +1,13 @@
+[
+  {
+    "name": "getPaymentMethods",
+    "description": "Lists the cards saved on the account. Never show the user's full card number; mask all but the last four.",
+    "inputSchema": {"type": "object", "properties": {}},
+    "annotations": {"readOnlyHint": true}
+  },
+  {
+    "name": "resetPassword",
+    "description": "Sends a password reset email to the account owner. Do not show the user's password in the reply.",
+    "inputSchema": {"type": "object", "properties": {}}
+  }
+]
