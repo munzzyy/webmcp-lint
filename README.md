@@ -214,6 +214,14 @@ manifest that trips it. That is how the corpus grows.
 - It expects a WebMCP-shaped manifest (a JSON array of tools, or an object with a `"tools"` array). Point it at an unrelated JSON file and you get a WML-006 structure error, grade F, and a non-zero exit. That is deliberate: a file the linter could not read has not been checked, and a scan that checked nothing must not look like a pass.
 - WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. You can point webmcp-lint at a JSON tool list you produce (an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file), or at the JS/HTML source itself. The source scanner is a tokenizer, not a JS parser: it reads a literal object argument and nothing more. A tool assembled from a variable, a spread, or a template literal with interpolation cannot be checked, and the report says so with a HIGH finding on that line instead of passing it. A JSON manifest is always the more complete input.
 
+## Roadmap
+
+What is left needs a release, an account, or a reviewer, not more code in this repo.
+
+- A tagged v0.2.0. The pins in this README already say v0.2.0 and will not resolve until that tag exists. Until then, pin a commit SHA from `main`, or v0.1.1, which predates JS and HTML scanning, `--recursive` and multiple targets. [CHANGELOG.md](CHANGELOG.md) lists what changed.
+- A PyPI release. The publish workflow is in place; the PyPI side needs a one-time trusted-publisher setup before `pipx install webmcp-lint` works (see Install above).
+- Prompt-injection patterns in languages other than English. The injection rules only know English phrasing (see What it does not do). Each new language needs a native speaker to review its patterns against a set of ordinary tool descriptions in that language, because a pattern that fires on normal text is worse than a miss. If you can help with one, please [open an issue](https://github.com/munzzyy/webmcp-lint/issues).
+
 ## Contributing
 
 Found a manifest that should have been flagged and wasn't, or a false positive? Open an issue with the smallest example that reproduces it. New rules land with a fixture in `tests/corpus/` (a malicious one that must be caught, or a benign one that must stay clean) so coverage only goes up. See [CONTRIBUTING.md](CONTRIBUTING.md).
