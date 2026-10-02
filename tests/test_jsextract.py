@@ -2,7 +2,6 @@
 
 import contextlib
 import io
-import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -11,13 +10,13 @@ from webmcp_lint import cli
 from webmcp_lint.finding import Severity
 from webmcp_lint.jsextract import extract_tools, load, scan_source
 from webmcp_lint.scanner import scan_files
+from tests._helpers import temp_dir
 
 CORPUS = Path(__file__).parent / "corpus"
 
 
 def _write(text: str, name: str = "index.html") -> Path:
-    tmp = Path(tempfile.mkdtemp(prefix="wml-js-"))
-    path = tmp / name
+    path = temp_dir() / name
     path.write_text(text, encoding="utf-8")
     return path
 

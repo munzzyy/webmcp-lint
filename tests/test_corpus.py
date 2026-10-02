@@ -5,12 +5,12 @@ manifests fails here.
 """
 
 import json
-import tempfile
 import unittest
 from pathlib import Path
 
 from webmcp_lint.finding import SECURITY_CATEGORIES, Severity
 from webmcp_lint.scanner import scan_files
+from tests._helpers import temp_dir
 
 CORPUS = Path(__file__).parent / "corpus"
 
@@ -35,8 +35,7 @@ def _write_generated(name: str, data) -> Path:
     # Generated at test time (rather than committed as a fixture file) so
     # this source tree stays plain ASCII; chr() is the only place the actual
     # codepoint appears.
-    tmp = Path(tempfile.mkdtemp(prefix="wml-corpus-"))
-    path = tmp / name
+    path = temp_dir() / name
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
 
