@@ -290,6 +290,19 @@ class JsGuessesFailClosed(unittest.TestCase):
     def test_method_definitions_in_an_object_literal_are_skipped(self):
         self.assertEqual(scan_source("const shim = { registerTool(tool) { return tool; } };"), [])
 
+    def test_a_brace_on_the_line_after_a_keyword_can_open_a_block(self):
+        body = "{ " + HIDDEN.replace("document.modelContext.", "")[:-1] + "\n{} } }"
+        for src in ("function* g() { with (document.modelContext) { yield\n" + body + " }",
+                    "var await; with (document.modelContext) { await\n" + body,
+                    "var of; with (document.modelContext) { of\n" + body,
+                    "with (document.modelContext) { debugger\n" + body):
+            with self.subTest(src=src):
+                self.assertEqual(_read(src), ["evil"])
+        for src in ("function* g() { yield { registerTool(tool) { return tool; } }; }",
+                    "async function f() { await { registerTool(tool) { return tool; } }; }"):
+            with self.subTest(src=src):
+                self.assertEqual(scan_source(src), [])
+
     def test_slash_after_a_brace_a_paren_or_a_property(self):
         for src in ("x = {}/1; " + HIDDEN + " y = 1/2;",
                     'if (ok) /"/.test(s); ' + HIDDEN,

@@ -112,6 +112,8 @@ _UNSURE_WORDS = frozenset(("yield", "await", "of"))
 _NO_OPERAND_WORDS = frozenset(("break", "continue", "debugger"))
 _PAREN_KEYWORDS = frozenset(("if", "while", "for", "with"))
 _BLOCK_WORDS = frozenset(("else", "do", "try", "finally", "static"))
+# ASI can end the statement after these, so a "{" on the next line may open a block.
+_LINE_END_WORDS = frozenset(("return", "yield", "await", "of"))
 _LITERAL_KINDS = frozenset(("]", "S", "N", "T", "R"))
 _ASI_KINDS = frozenset((None, ";", "{", "}", ")", "=>", "]", "S", "N", "T", "R", "X", "++", "--"))
 _BRACE_CONTEXT = {"{b": "block", "{e": "expr", "{c": "class"}
@@ -410,7 +412,7 @@ def _tokenize(text: str, module=None):
                 class_at = -1
             else:
                 opened = "{" + _brace_kind(prev, prev_val, dotted, colon_q,
-                                           stack[-1] if stack else "")
+                                           stack[-1] if stack else "", newline)
             stack.append(opened)
             open_q.append(0)
         elif kind in (")", "]", "}"):
@@ -480,14 +482,14 @@ def _slash(prev, prev_val, dotted, paren_kw, brace, ended):
     return True, False
 
 
-def _brace_kind(prev, prev_val, dotted, colon_q, top) -> str:
+def _brace_kind(prev, prev_val, dotted, colon_q, top, newline) -> str:
     """"b" if a "{" after `prev` opens a block, "e" if an object literal."""
     if prev == ":":
         return "e" if colon_q or top in ("{e", "(", "(k", "[", "${") else "b"
     if prev in _ASI_KINDS:
         return "b"
     if prev == "I":
-        if dotted or prev_val in _BLOCK_WORDS:
+        if dotted or prev_val in _BLOCK_WORDS or (newline and prev_val in _LINE_END_WORDS):
             return "b"
         return "e" if prev_val in _REGEX_AFTER_WORDS or prev_val in _UNSURE_WORDS else "b"
     return "e"
