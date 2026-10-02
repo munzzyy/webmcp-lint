@@ -297,6 +297,23 @@ class JsGuessesFailClosed(unittest.TestCase):
             with self.subTest(src=src):
                 self.assertEqual(_read(src), ["evil"])
 
+    def test_slash_after_debugger_break_or_continue_is_a_regex(self):
+        for src in ("debugger\n/'/; " + HIDDEN + " //'",
+                    "do { break\n/'/ } while (0); " + HIDDEN + " //'",
+                    "do { continue\n/'/ } while (0); " + HIDDEN + " //'",
+                    "out: { break out\n/'/ } " + HIDDEN + " //'"):
+            with self.subTest(src=src):
+                self.assertEqual(_read(src), ["evil"])
+                self.assertEqual(_read("<script>" + src + "</script>", html=True), ["evil"])
+
+    def test_slash_after_debugger_break_or_continue_is_a_guess(self):
+        for word in ("debugger", "break", "continue", "break out"):
+            with self.subTest(word=word):
+                calls = scan_source(word + "\n/x/;\n// " + HIDDEN)
+                self.assertEqual([c.tool for c in calls], [None])
+                self.assertIn('"/"', calls[0].problem)
+        self.assertEqual(scan_source("do { break\nx / 2 / 3 } while (0);\n// " + HIDDEN), [])
+
     def test_a_call_a_wrong_guess_could_hide_is_unread(self):
         for src in ('x = function(){} / 2 + "a/" + "//"; ' + HIDDEN,
                     "x = {} / 2;\n// " + HIDDEN,

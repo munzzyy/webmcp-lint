@@ -108,6 +108,8 @@ _REGEX_AFTER_WORDS = frozenset((
     "case", "do", "else", "default", "extends"))
 # Keywords in one context and plain names in another, so a "/" after them is a guess.
 _UNSURE_WORDS = frozenset(("yield", "await", "of"))
+# No operand: a "/" after these or a break/continue label is a regex, but odd enough to be a guess.
+_NO_OPERAND_WORDS = frozenset(("break", "continue", "debugger"))
 _PAREN_KEYWORDS = frozenset(("if", "while", "for", "with"))
 _BLOCK_WORDS = frozenset(("else", "do", "try", "finally", "static"))
 _LITERAL_KINDS = frozenset(("]", "S", "N", "T", "R"))
@@ -271,7 +273,7 @@ def _tokenize(text: str, module=None):
     unsure, why_unsure = n, ""
     i = _REST_OF_LINE_RX.match(text, 2).end() if text.startswith("#!") else 0
     prev = prev_val = before = before_val = None
-    dotted = paren_kw = colon_q = False
+    dotted = paren_kw = colon_q = ended = False
     brace = "b"
     class_at = -1
     line_has_code = False
@@ -296,14 +298,14 @@ def _tokenize(text: str, module=None):
                     starts.append(template_start)
                     ends.append(i)
                 before, before_val, prev, prev_val = prev, prev_val, "T", None
-                dotted = paren_kw = colon_q = False
+                dotted = paren_kw = colon_q = ended = False
             elif stop == "${":
                 if templates == 1:
                     sub_start = i - 2
                 stack.append("${")
                 open_q.append(0)
                 before, before_val, prev, prev_val = prev, prev_val, "(", None
-                dotted = paren_kw = colon_q = False
+                dotted = paren_kw = colon_q = ended = False
             continue
 
         c = text[i]
@@ -354,14 +356,14 @@ def _tokenize(text: str, module=None):
                     stack.append("${")
                     open_q.append(0)
                     before, before_val, prev, prev_val = prev, prev_val, "(", None
-                    dotted = paren_kw = colon_q = False
+                    dotted = paren_kw = colon_q = ended = False
                 i = end
                 continue
         elif "0" <= c <= "9" or (c == "." and "0" <= nxt <= "9"):
             m = _NUMBER_RX.match(text, i)
             kind, val, i = "N", _js_number(m.group()), m.end()
         elif c == "/":
-            regex, guess = _slash(prev, prev_val, dotted, paren_kw, brace)
+            regex, guess = _slash(prev, prev_val, dotted, paren_kw, brace, ended)
             if guess and i < unsure:
                 unsure, why_unsure = i, _AFTER_SLASH
             end = _scan_regex(text, i, regex_memo) if regex else -1
@@ -381,13 +383,16 @@ def _tokenize(text: str, module=None):
                 else:
                     kind, val, i = "X", None, i + 1
 
+        newline = not line_has_code
         line_has_code = True
-        now_dotted = now_paren_kw = now_colon_q = False
+        now_dotted = now_paren_kw = now_colon_q = now_ended = False
         now_brace = "b"
         if prev == "I" and prev_val == "class" and kind not in ("I", "{"):
             class_at = -1  # `{class: ...}` or `x.class(...)`: a name, not a class
         if kind == "I":
             now_dotted = prev in (".", "?.", "#")
+            now_ended = not now_dotted and (val in _NO_OPERAND_WORDS or (
+                ended and not newline and prev_val in ("break", "continue")))
             if val == "class" and not now_dotted:
                 class_at = len(stack)
         elif kind == "(":
@@ -442,6 +447,7 @@ def _tokenize(text: str, module=None):
             ends.append(i)
         before, before_val, prev, prev_val = prev, prev_val, kind, val
         dotted, paren_kw, brace, colon_q = now_dotted, now_paren_kw, now_brace, now_colon_q
+        ended = now_ended
 
     if templates:
         kinds.append("X")
@@ -451,7 +457,7 @@ def _tokenize(text: str, module=None):
     return kinds, vals, starts, ends, subs, unsure, why_unsure, ctx
 
 
-def _slash(prev, prev_val, dotted, paren_kw, brace):
+def _slash(prev, prev_val, dotted, paren_kw, brace, ended):
     """(does a "/" here start a regex, is that a guess)."""
     if prev is None:
         return True, False
@@ -460,7 +466,8 @@ def _slash(prev, prev_val, dotted, paren_kw, brace):
             return False, False
         if prev_val in _REGEX_AFTER_WORDS:
             return True, False
-        return prev_val in _UNSURE_WORDS, prev_val in _UNSURE_WORDS
+        unsure = ended or prev_val in _UNSURE_WORDS
+        return unsure, unsure
     if prev == ")":
         return paren_kw, False
     if prev == "}":
