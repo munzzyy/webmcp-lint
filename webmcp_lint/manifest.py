@@ -62,6 +62,34 @@ class Manifest:
         return not self.parse_error and not self.structure_error
 
 
+
+# Deeper than any manifest and shallower than any interpreter's parser stack,
+# so a [[[[...]]]] file fails the same way on every Python; 3.14.0 parses
+# 100,000 levels without a RecursionError, 3.14.7 does not.
+MAX_JSON_DEPTH = 512
+
+
+def _json_depth(text: str) -> int:
+    depth = peak = 0
+    in_str = esc = False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "[{":
+            depth += 1
+            if depth > peak:
+                peak = depth
+        elif ch in "]}":
+            depth -= 1
+    return peak
+
 def load(path: Path) -> Manifest:
     m = Manifest(path=path, relpath=str(path))
     try:
@@ -94,6 +122,10 @@ def load(path: Path) -> Manifest:
         return m
     m.text = text
 
+    if _json_depth(m.text) > MAX_JSON_DEPTH:
+        m.too_deep = True
+        m.parse_error = "the JSON is nested too deeply to parse"
+        return m
     try:
         data = json.loads(m.text)
     except json.JSONDecodeError as e:
