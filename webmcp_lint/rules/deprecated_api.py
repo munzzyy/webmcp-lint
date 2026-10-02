@@ -34,7 +34,8 @@ _DEPRECATED = re.compile(r"\bnavigator\s*\.\s*modelContext\b")
 
 def check(manifest) -> list:
     text = getattr(manifest, "text", "") or ""
-    if not _DEPRECATED.search(text):
+    found = _DEPRECATED.search(text)
+    if not found:
         return []
     return [mk(
         RULE_ID, Category.SCHEMA, Severity.MEDIUM, manifest.relpath,
@@ -45,4 +46,5 @@ def check(manifest) -> list:
         "agent when the origin trial ends.",
         "Register on document.modelContext instead, and update any docs or "
         "examples in the manifest that still name navigator.modelContext.",
+        line=text.count("\n", 0, found.start()) + 1,
     )]

@@ -8,7 +8,7 @@ import os
 from pathlib import PurePath
 
 from . import __version__
-from .finding import ScanResult, Severity
+from .finding import SECURITY_CATEGORIES, ScanResult, Severity
 from .rules import RULE_META
 from .rules.unicode_smuggling import is_hidden
 
@@ -161,23 +161,33 @@ def _fingerprint(f, uri: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _sarif_rules(rule_ids) -> list:
+def _sarif_rules(findings) -> list:
+    """One descriptor per rule that fired. Code scanning ranks a security
+    alert by the security-severity and "security" tag on its rule. A rule
+    that fired at several severities gets the highest one seen in this run.
+    Hygiene and size-budget rules get neither; they are not security findings."""
     rules = []
-    for rid in rule_ids:
+    for rid in sorted({f.rule_id for f in findings}):
         title, summary = RULE_META.get(rid, (rid, ""))
-        rules.append({
+        rule = {
             "id": rid,
             "name": title,
             "shortDescription": {"text": title},
             "fullDescription": {"text": summary or title},
             "helpUri": f"{DOCS_URL}#{rid.lower()}",
-        })
+        }
+        hits = [f for f in findings if f.rule_id == rid and f.category in SECURITY_CATEGORIES]
+        if hits:
+            rule["properties"] = {
+                "tags": ["security"],
+                "security-severity": max((_sec_severity(f.severity) for f in hits), key=float),
+            }
+        rules.append(rule)
     return rules
 
 
 def render_sarif(result: ScanResult) -> str:
-    rule_ids = sorted({f.rule_id for f in result.findings})
-    rules = _sarif_rules(rule_ids)
+    rules = _sarif_rules(result.findings)
     sarif_results = []
     for f in result.findings:
         message = f"{f.title}: {f.detail}"
@@ -185,6 +195,9 @@ def render_sarif(result: ScanResult) -> str:
         location = {"uri": uri}
         if not PurePath(uri).is_absolute():
             location["uriBaseId"] = "%SRCROOT%"
+        physical = {"artifactLocation": location}
+        if f.line:
+            physical["region"] = {"startLine": f.line}
         sarif_results.append({
             "ruleId": f.rule_id,
             "level": _SARIF_LEVEL[f.severity],
@@ -195,11 +208,7 @@ def render_sarif(result: ScanResult) -> str:
                 "category": f.category.value,
                 "tool": f.tool,
             },
-            "locations": [{
-                "physicalLocation": {
-                    "artifactLocation": location,
-                }
-            }],
+            "locations": [{"physicalLocation": physical}],
         })
     doc = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",

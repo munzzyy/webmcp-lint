@@ -41,6 +41,7 @@ class Tool:
     annotations: dict  # {} if missing or not an object
     has_input_schema: bool  # True only if the "inputSchema" key is present at all
     input_schema: Any  # whatever was under inputSchema; only meaningful if has_input_schema
+    line: int = 0  # line of its registerTool( call in JS/HTML source, 0 for a JSON manifest
 
 
 @dataclass

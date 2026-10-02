@@ -66,6 +66,7 @@ class Finding:
     not_scanned: bool = False
     # True when part of the file went unread. Like not_scanned, --ignore cannot drop it.
     partial: bool = False
+    line: int = 0  # 1-based line in the file, 0 when unknown
 
     def sort_key(self):
         # Worst first, then by location for stable output.

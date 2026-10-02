@@ -81,6 +81,7 @@ def check(manifest) -> list:
             f"be read, so the tools they register were not checked: {describe_unread(unread)}.",
             _SOURCE_FIX,
             partial=True,
+            line=unread[0][0],
         ))
 
     for tool in manifest.tools:

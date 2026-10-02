@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from .finding import ScanResult
@@ -25,6 +26,21 @@ def _load(path: Path):
     return load_json(path)
 
 
+def _with_lines(manifest, findings) -> list:
+    """Give each finding from JS/HTML source the line of its registerTool(
+    call, or of the first call when it is about the file as a whole."""
+    lines = [t.line for t in manifest.tools]
+    if not any(lines):
+        return findings
+    out = []
+    for f in findings:
+        if not f.line and not f.not_scanned:
+            in_range = 0 <= f.tool_index < len(lines)
+            f = replace(f, line=lines[f.tool_index] if in_range else min(lines))
+        out.append(f)
+    return out
+
+
 def scan_files(paths, root: str = "", ignore=()) -> ScanResult:
     """Scan every path and grade the result.
 
@@ -46,7 +62,7 @@ def scan_files(paths, root: str = "", ignore=()) -> ScanResult:
         path = Path(p)
         try:
             m = _load(path)
-            found = run_all(m)
+            found = _with_lines(m, run_all(m))
             tools = len(m.tools)
         except Exception as e:  # one hostile file must not end the run for the others
             found = [crashed(str(path), e)]

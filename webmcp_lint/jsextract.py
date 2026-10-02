@@ -682,5 +682,7 @@ def load(path: Path) -> Manifest:
             f"of them ({describe_unread(unread)})")
         return m
     m.tools = [_normalize_tool(i, c.tool) for i, c in enumerate(readable)]
+    for tool, call in zip(m.tools, readable):
+        tool.line = call.line
     m.unread_calls = [(c.line, c.problem) for c in unread]
     return m
