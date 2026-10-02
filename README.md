@@ -224,7 +224,6 @@ manifest that trips it. That is how the corpus grows.
 
 These are waiting on a release, an account, or a reviewer.
 
-- A tagged v0.2.0. The pins in this README already say v0.2.0 and will not resolve until that tag exists. Until then, pin a commit SHA from `main`, or v0.1.1, which predates JS and HTML scanning, `--recursive` and multiple targets. [CHANGELOG.md](CHANGELOG.md) lists what changed.
 - A PyPI release. The publish workflow is in place; the PyPI side needs a one-time trusted-publisher setup before `pipx install webmcp-lint` works (see Install above).
 - Prompt-injection patterns in languages other than English. The injection rules only know English phrasing (see What it does not do). Each new language needs a native speaker to review its patterns against a set of ordinary tool descriptions in that language, because a pattern that fires on normal text is worse than a miss. If you can help with one, please [open an issue](https://github.com/munzzyy/webmcp-lint/issues).
 

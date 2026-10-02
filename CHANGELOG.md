@@ -3,7 +3,7 @@
 Notable changes in each release. If an upgrade broke something for you,
 please open an issue at https://github.com/munzzyy/webmcp-lint/issues.
 
-## 0.2.0 (unreleased)
+## 0.2.0 - 2026-10-02
 
 - Lints JS and HTML source directly. A `.js`, `.mjs`, `.html` or `.htm` target is scanned for `registerTool({...})` calls, and a directory with no JSON manifest falls back to its `index.html`, `index.htm`, `mcp.js` or `webmcp.js`.
 - The source scanner tokenizes the file instead of patching the literal into JSON. Calls with an `execute` callback (arrow, method or function) are read, and a URL, an apostrophe in a comment, a raw tab or a JS escape in a string no longer makes a tool disappear. Calls inside comments or strings and `unregisterTool(` are ignored. HTML is split up the way a browser splits it, so `<!-->`, `--!>` or a `<!--` inside an attribute or a `<style>` cannot hide a `<script>`, and a `<script>` inside inline SVG is read.
