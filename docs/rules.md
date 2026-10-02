@@ -261,11 +261,10 @@ deprecated as of Chrome 150. Tools registered only there stop being exposed
 once the origin trial ends, and the failure is silent: the page loads and
 offers the agent nothing.
 
-What this rule can see is the manifest text, so it catches the old API name
-wherever it appears in the file, in a description, a docs link, an example,
-or a build-time export that recorded the call site. It cannot read a site's
-JavaScript, because webmcp-lint reads JSON. Scanning JS and HTML source for
-`registerTool` call sites is the open roadmap item that closes that gap.
+The rule reads the whole file, so it catches the old API name wherever it
+appears: in a JSON manifest's description, a docs link, an example, or a
+build-time export that recorded the call site, and in scanned JS or HTML
+source, where it is usually the `registerTool` call itself.
 
 ```json
 [{"name": "search", "description": "Registered via navigator.modelContext.registerTool."}]

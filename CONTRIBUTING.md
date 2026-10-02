@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking at this. It's a small, single-purpose tool and contributions are welcome.
+Thanks for looking at this. It is a small, single-purpose tool and contributions are welcome.
 
 ## Setup
 
@@ -9,7 +9,7 @@ git clone https://github.com/munzzyy/webmcp-lint
 cd webmcp-lint
 ```
 
-There's nothing to install. webmcp-lint is pure standard library, and so is its test suite.
+There is nothing to install. webmcp-lint is pure standard library, and so is its test suite.
 
 ## Running the tests
 
@@ -17,7 +17,7 @@ There's nothing to install. webmcp-lint is pure standard library, and so is its 
 python -m unittest discover -s tests -t .
 ```
 
-That's the whole suite: unit tests per rule, engine tests, and a labeled corpus in `tests/corpus/`. CI runs the same command across Linux, macOS, and Windows on Python 3.9 through 3.13.
+That is the whole suite: unit tests per rule, engine tests, and a labeled corpus in `tests/corpus/`. CI runs the same command across Linux, macOS, and Windows on Python 3.9 through 3.14.
 
 ## Adding or fixing a rule
 

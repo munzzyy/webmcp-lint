@@ -100,7 +100,7 @@ You can run `webmcp-lint` as a [pre-commit](https://pre-commit.com/) hook. Add t
 ```yaml
 repos:
   - repo: https://github.com/munzzyy/webmcp-lint
-    rev: v0.1.1 # replace with latest tag
+    rev: v0.2.0 # replace with latest tag
     hooks:
       - id: webmcp-lint
 ```
@@ -112,7 +112,7 @@ The hook passes every staged `mcp.json`, `webmcp.json` and `.well-known/mcp.json
 webmcp-lint exits non-zero when it finds something at or above a severity you choose:
 
 ```yaml
-- run: pipx run --spec git+https://github.com/munzzyy/webmcp-lint@v0.1.1 webmcp-lint mcp.json --fail-on high
+- run: pipx run --spec git+https://github.com/munzzyy/webmcp-lint@v0.2.0 webmcp-lint mcp.json --fail-on high
 ```
 
 `--fail-on` takes `critical`, `high`, `medium`, `low`, `info`, or `none` (default `high`).
@@ -120,8 +120,8 @@ webmcp-lint exits non-zero when it finds something at or above a severity you ch
 It also speaks SARIF, so findings show up in the GitHub Security tab:
 
 ```yaml
-- run: pipx run --spec git+https://github.com/munzzyy/webmcp-lint@v0.1.1 webmcp-lint mcp.json --sarif > webmcp-lint.sarif
-- uses: github/codeql-action/upload-sarif@v3
+- run: pipx run --spec git+https://github.com/munzzyy/webmcp-lint@v0.2.0 webmcp-lint mcp.json --sarif > webmcp-lint.sarif
+- uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: webmcp-lint.sarif
 ```
@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: munzzyy/webmcp-lint@v0.1.1
+      - uses: munzzyy/webmcp-lint@v0.2.0
         with:
           path: mcp.json      # file, directory, or glob (default: ".")
           fail-on: high        # default: high

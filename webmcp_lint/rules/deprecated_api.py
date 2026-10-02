@@ -6,12 +6,10 @@ navigator.modelContext is deprecated as of Chrome 150. Tools registered only
 on the old surface stop being visible to the agent once the origin trial
 ends, which is a silent failure: the page looks fine and exposes nothing.
 
-What this rule can see today is the manifest text, so it catches the old API
-name wherever it appears in the file: a description, a docs link, an example
-snippet, a build-time export that recorded the call site. It cannot see a
-site's JavaScript, because webmcp-lint reads JSON. Scanning JS and HTML
-source for registerTool call sites is the roadmap item that closes that gap;
-until then this is the part that is checkable, and it is worth checking.
+The rule reads the whole file text, so it catches the old API name wherever
+it appears: in a JSON manifest's description, docs link, example snippet or
+build-time export, and in scanned JS or HTML source, where it is usually the
+registerTool call itself.
 """
 
 from __future__ import annotations
