@@ -156,7 +156,9 @@ webmcp-lint public/index.html
 webmcp-lint src/tools.js
 ```
 
-This is best effort, not a JS parser. It's a bracket-matching scanner that finds each `registerTool(` call and reads the object literal passed to it, tolerating single quotes, unquoted keys, and trailing commas along the way. A tool built from a variable, a spread, or a template literal with `${...}` interpolation is invisible to it and gets silently skipped rather than half-parsed into something wrong, so treat a clean result on heavily dynamic or minified JS as "nothing found" rather than "nothing wrong". A JSON manifest, when you have one, will always be scanned more completely.
+This is best effort, not a JS parser. It tokenizes the file, so strings, comments, template literals and regex literals are told apart from code, then finds each `registerTool(` call and reads the object literal passed to it. Single quotes, unquoted keys, trailing commas and comments inside the literal are fine, and the `execute` callback is skipped. In an HTML file only `<script>` contents count, so a call inside an HTML comment is ignored.
+
+What it cannot read is a value it would have to run code to know: a tool built from a variable, a spread, a function call, or a template literal with `${...}`. Those call sites are not dropped. Each one is reported as a HIGH WML-006 finding with its line number, and a file where no call could be read grades F like any other file nothing inspected. A JSON manifest, when you have one, will always be scanned more completely.
 
 ### Suppressing a finding
 
@@ -200,7 +202,7 @@ manifest that trips it. That is how the corpus grows.
 - A clean grade means nothing in the manifest itself tripped a rule, not that the tool is safe to call. `readOnlyHint` and `untrustedContentHint` are self-reported by whoever wrote the manifest; webmcp-lint checks that they're set where the text implies they should be, not that they're honest.
 - The prompt-injection and content-keyword rules are pattern matching over English phrasing. They catch the direct, common forms and will miss a determined paraphrase or another language, and can occasionally flag an ordinary sentence that happens to use the same words.
 - It expects a WebMCP-shaped manifest (a JSON array of tools, or an object with a `"tools"` array). Point it at an unrelated JSON file and you get a WML-006 structure error, grade F, and a non-zero exit. That is deliberate: a file the linter could not read has not been checked, and a scan that checked nothing must not look like a pass.
-- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. You can point webmcp-lint at a JSON tool list you produce (an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file), or at the JS/HTML source itself. The source scanner is a bracket-matching best effort, not a JS parser: it reads a literal object argument and nothing more, so a tool assembled from a variable, a spread, or a template literal with interpolation is invisible to it. A JSON manifest is always the more complete input.
+- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. You can point webmcp-lint at a JSON tool list you produce (an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file), or at the JS/HTML source itself. The source scanner is a tokenizer, not a JS parser: it reads a literal object argument and nothing more. A tool assembled from a variable, a spread, or a template literal with interpolation cannot be checked, and the report says so with a HIGH finding on that line instead of passing it. A JSON manifest is always the more complete input.
 
 ## Contributing
 

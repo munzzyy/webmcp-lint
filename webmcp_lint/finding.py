@@ -64,6 +64,8 @@ class Finding:
     # True when the manifest could not be read at all, so no rule actually
     # inspected it. A scan that inspected nothing must never look like a pass.
     not_scanned: bool = False
+    # True when part of the file went unread. Like not_scanned, --ignore cannot drop it.
+    partial: bool = False
 
     def sort_key(self):
         # Worst first, then by location for stable output.

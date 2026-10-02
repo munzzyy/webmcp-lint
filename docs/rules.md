@@ -2,7 +2,8 @@
 
 Every rule webmcp-lint runs, what it looks for, and how to fix a hit. A
 test keeps this file in sync with the code, so a rule cannot exist without
-being documented here.
+being documented here. Think a rule is wrong? Open an issue with the
+manifest that trips it.
 
 ## WML-001
 
@@ -123,6 +124,12 @@ A manifest that could not be read is reported **high** and grades **F with a
 score of zero**, because no other rule inspected it. A scan that inspected
 nothing must not look like a pass.
 
+In JS or HTML source, a `registerTool(...)` call whose argument isn't a
+literal (a variable, a spread, a value built at runtime) cannot be checked.
+Next to calls that could be read, it is reported **high** with its line
+number, and `--ignore` cannot drop it. If no call in the file could be read,
+the file counts as unread and grades F.
+
 An annotation written as the string `"true"` instead of the boolean `true`
 is reported low. Every consumer reads it as unset, and this is what a
 template engine or a YAML-to-JSON step does to a boolean.
@@ -175,7 +182,8 @@ Fix: delete the invisible/bidi characters from the field.
 
 Over Chrome's published size budget. Severity low to medium.
 
-Chrome's secure-tools guidance gives tool authors hard character budgets: 30
+Chrome's [secure-tools guidance](https://developer.chrome.com/docs/ai/webmcp/secure-tools)
+gives tool authors hard character budgets: 30
 for a tool name and for a parameter name, 500 for a tool description, 150
 for a parameter description. Names over budget are reported low,
 descriptions medium.

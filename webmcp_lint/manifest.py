@@ -52,6 +52,8 @@ class Manifest:
     structure_error: str = ""  # set if the JSON parsed but isn't a recognized tool list
     tools: list = field(default_factory=list)  # list[Tool]
     oversized: bool = False  # bigger than MAX_FILE_BYTES; only the prefix was read
+    source: bool = False  # read from JS/HTML source by jsextract, not a JSON manifest
+    unread_calls: list = field(default_factory=list)  # (line, reason) per registerTool call jsextract could not read
 
     @property
     def ok(self) -> bool:

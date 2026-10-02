@@ -9,6 +9,7 @@ scanning nothing.
 from __future__ import annotations
 
 from ..finding import Category, Severity
+from ..jsextract import describe_unread
 from ._util import KNOWN_ANNOTATIONS, annotation_state, mk, typename
 
 RULE_ID = "WML-006"
@@ -22,6 +23,12 @@ SUMMARY = (
 # Keys that give a schema a shape without a "type" key of its own.
 _SCHEMA_ESCAPE_KEYS = ("allOf", "anyOf", "oneOf", "$ref", "const", "enum")
 
+_SOURCE_FIX = (
+    "Pass registerTool a literal object, and keep name, description, "
+    "inputSchema and annotations as literals so they can be checked. If the "
+    "tools have to be built at runtime, lint a JSON export of the tool list instead."
+)
+
 
 def check(manifest) -> list:
     findings = []
@@ -29,15 +36,20 @@ def check(manifest) -> list:
     # ran, so every other check is silent and the report looks clean. It is
     # reported HIGH and marked not_scanned so the default gate fails and the
     # grade floors at F, rather than a broken file passing CI with an A.
+    source = getattr(manifest, "source", False)
     if manifest.parse_error:
         oversized = getattr(manifest, "oversized", False)
+        if oversized:
+            fix = "Split the file so it fits under the scan limit."
+        elif source:
+            fix = "Make sure the file exists, is readable, and is saved as UTF-8."
+        else:
+            fix = "Fix the JSON syntax so the manifest can be read by a browser or agent."
         findings.append(mk(
             RULE_ID, Category.SCHEMA, Severity.HIGH, manifest.relpath,
             "Manifest too large to scan" if oversized else "Manifest is not valid JSON",
             f"The manifest could not be parsed, so no rule inspected it: {manifest.parse_error}",
-            "Split the manifest so it fits under the scan limit."
-            if oversized else
-            "Fix the JSON syntax so the manifest can be read by a browser or agent.",
+            fix,
             not_scanned=True,
         ))
         return findings
@@ -47,10 +59,23 @@ def check(manifest) -> list:
             RULE_ID, Category.SCHEMA, Severity.HIGH, manifest.relpath,
             "Manifest is not a recognized WebMCP tool list",
             f"{manifest.structure_error}. No tools were found, so no rule inspected anything.",
+            _SOURCE_FIX if source else
             'The manifest must be a JSON array of tools, or an object with a "tools" array.',
             not_scanned=True,
         ))
         return findings
+
+    unread = getattr(manifest, "unread_calls", None)
+    if unread:
+        total = len(unread) + len(manifest.tools)
+        findings.append(mk(
+            RULE_ID, Category.SCHEMA, Severity.HIGH, manifest.relpath,
+            "Some registerTool calls could not be read",
+            f"{len(unread)} of the {total} registerTool(...) calls in this file could not "
+            f"be read, so the tools they register were not checked: {describe_unread(unread)}.",
+            _SOURCE_FIX,
+            partial=True,
+        ))
 
     for tool in manifest.tools:
         label = tool.name or f"tool #{tool.index}"

@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head><title>Corner shop</title></head>
+<body>
+<p>Don't miss this week's deals.</p>
+<script>
+  document.modelContext.registerTool({
+    name: "getWeather",
+    description: "Returns the current weather for a given city.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        city: {type: "string", maxLength: 64},
+      },
+    },
+    annotations: {readOnlyHint: true},
+    async execute({city}) {
+      const res = await fetch(`/api/weather?city=${encodeURIComponent(city)}`);
+      return res.json();
+    },
+  });
+
+  document.modelContext.registerTool({
+    // don't rename: the checkout page calls this by name
+    name: "addToCart",
+    description: "Adds an item to the shopping cart.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        itemId: {type: "string", maxLength: 32},
+        quantity: {type: "integer", minimum: 1, maximum: 99},
+      },
+      required: ["itemId"],
+    },
+    execute: async ({itemId, quantity = 1}) => {
+      await cart.add(itemId, quantity);
+      return {ok: true};
+    },
+  });
+</script>
+</body>
+</html>

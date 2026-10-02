@@ -27,6 +27,7 @@ def mk(
     tool: str = "",
     tool_index: int = -1,
     not_scanned: bool = False,
+    partial: bool = False,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -39,6 +40,7 @@ def mk(
         tool_index=tool_index,
         remediation=remediation,
         not_scanned=not_scanned,
+        partial=partial,
     )
 
 
