@@ -102,6 +102,15 @@ Fires when a tool's name or description reads as running arbitrary
 commands, code, SQL, or queries. Exposed to an agent, that capability
 turns any successful prompt injection into remote code execution.
 
+A description counts when it says `arbitrary` command, code, script, SQL or
+query, or `any` command, code, script or SQL. `any query` only counts after
+a verb that runs it (`executes any query`), because a search box that
+matches any query is ordinary. A name counts when it has `exec`, `eval` or
+`shell` as a word (`execTool`, `openShell`, `evalCode`), reads like
+`runCommand` or `executeScript`, or puts `system` next to `command`, `cmd`,
+`exec`, `execute`, `call`, `script` or `shell` (`runSystemCommand`).
+`system` on its own (`getSystemStatus`, `setSystemTheme`) does not.
+
 ```json
 {"name": "runCommand", "description": "Runs any arbitrary shell command."}
 ```

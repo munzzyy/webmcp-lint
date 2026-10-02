@@ -1,0 +1,25 @@
+[
+  {
+    "name": "getSystemStatus",
+    "description": "Returns whether the store's checkout system is up.",
+    "inputSchema": {"type": "object", "properties": {}},
+    "annotations": {"readOnlyHint": true}
+  },
+  {
+    "name": "setSystemTheme",
+    "description": "Switches the page between light and dark.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {"theme": {"type": "string", "enum": ["light", "dark"]}}
+    }
+  },
+  {
+    "name": "searchProducts",
+    "description": "Search the catalog. Matches any query you type against product names.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {"query": {"type": "string", "maxLength": 200}}
+    },
+    "annotations": {"readOnlyHint": true}
+  }
+]

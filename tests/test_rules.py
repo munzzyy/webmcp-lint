@@ -446,6 +446,34 @@ class ExecCapabilityRule(unittest.TestCase):
         r = scan_tools([{"name": "getWeather", "description": "Look up current weather."}])
         self.assertEqual(by_rule(r, "WML-005"), [])
 
+    def test_system_alone_in_a_name_not_flagged(self):
+        for name in ("getSystemStatus", "setSystemTheme", "getSystemInfo", "systemSettings"):
+            with self.subTest(name=name):
+                r = scan_tools([{"name": name, "description": "Reads a setting."}])
+                self.assertEqual(by_rule(r, "WML-005"), [])
+
+    def test_executor_names_still_flagged(self):
+        for name in ("runSystemCommand", "systemCommand", "systemExec", "execSystem",
+                     "runShell", "execShell", "openShell", "evalCode", "execTool", "runCommand"):
+            with self.subTest(name=name):
+                r = scan_tools([{"name": name, "description": "Does a task."}])
+                hits = by_rule(r, "WML-005")
+                self.assertTrue(hits and hits[0].severity == Severity.HIGH)
+
+    def test_search_that_matches_any_query_not_flagged(self):
+        for text in ("Matches any query you type.", "Returns results for any query."):
+            with self.subTest(text=text):
+                r = scan_tools([{"name": "helper", "description": text}])
+                self.assertEqual(by_rule(r, "WML-005"), [])
+
+    def test_running_any_query_still_flagged(self):
+        for text in ("Runs any SQL query against the database.", "Executes any query you pass.",
+                     "Accepts arbitrary queries."):
+            with self.subTest(text=text):
+                r = scan_tools([{"name": "helper", "description": text}])
+                hits = by_rule(r, "WML-005")
+                self.assertTrue(hits and hits[0].severity == Severity.HIGH)
+
 
 class SchemaRule(unittest.TestCase):
     def test_malformed_json(self):
