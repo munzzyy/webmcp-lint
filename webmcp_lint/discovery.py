@@ -9,6 +9,7 @@ on Windows and with a quoted pattern.
 from __future__ import annotations
 
 import glob as _glob
+import os
 from pathlib import Path
 
 # Filenames a WebMCP manifest conventionally lives at, checked in order.
@@ -71,3 +72,23 @@ def resolve_targets(target: str, recursive: bool = False) -> list:
         return sorted(found, key=str)
     matches = sorted(_glob.glob(target, recursive=True))
     return [Path(m) for m in matches if Path(m).is_file()]
+
+
+def resolve_all(targets, recursive: bool = False) -> tuple:
+    """(files to scan, targets that matched nothing) for several targets.
+
+    pre-commit passes every staged manifest at once, so a repo with both
+    mcp.json and .well-known/mcp.json hands over two. A file reached through
+    two targets (mcp.json and ./mcp.json) is scanned once.
+    """
+    found, seen, missing = [], set(), []
+    for target in targets:
+        paths = resolve_targets(target, recursive=recursive)
+        if not paths:
+            missing.append(target)
+        for p in paths:
+            key = os.path.normcase(str(p.resolve()))
+            if key not in seen:
+                seen.add(key)
+                found.append(p)
+    return found, missing

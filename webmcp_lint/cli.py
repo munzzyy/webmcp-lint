@@ -7,7 +7,7 @@ import os
 import sys
 
 from . import __version__
-from .discovery import resolve_targets
+from .discovery import resolve_all
 from .finding import Severity
 from .report import render_human, render_json, render_sarif
 from .rules import RULE_IDS
@@ -26,9 +26,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Security and spec-correctness linter for WebMCP tool manifests.",
     )
     p.add_argument(
-        "target",
-        help="a manifest file, a directory (looks for mcp.json / webmcp.json / "
-             ".well-known/mcp.json inside it), or a glob pattern",
+        "targets", nargs="+", metavar="target",
+        help="one or more manifest files, directories (looks for mcp.json / "
+             "webmcp.json / .well-known/mcp.json inside), or glob patterns",
     )
     p.add_argument(
         "--recursive", "-r", action="store_true",
@@ -125,12 +125,13 @@ def main(argv=None) -> int:
         print(f"webmcp-lint: {e}", file=sys.stderr)
         return 2
 
-    targets = resolve_targets(args.target, recursive=args.recursive)
-    if not targets:
-        print(f"webmcp-lint: no manifest file(s) matched {args.target!r}", file=sys.stderr)
+    targets, missing = resolve_all(args.targets, recursive=args.recursive)
+    if missing:
+        for target in missing:
+            print(f"webmcp-lint: no manifest file(s) matched {target!r}", file=sys.stderr)
         return 2
 
-    result = scan_files(targets, root=args.target, ignore=ignore)
+    result = scan_files(targets, root=", ".join(args.targets), ignore=ignore)
 
     color = not args.no_color and sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
     if args.json:

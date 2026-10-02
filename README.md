@@ -84,7 +84,10 @@ webmcp-lint mcp.json                    # scan a single manifest file
 webmcp-lint ./public                    # looks for mcp.json / webmcp.json / .well-known/mcp.json inside
 webmcp-lint ./public --recursive        # also looks inside subdirectories
 webmcp-lint "manifests/*.json"          # glob, expanded by the tool (works on Windows too)
+webmcp-lint mcp.json .well-known/mcp.json   # several targets in one run
 ```
+
+Several targets are scanned as one run with one grade. A file reached twice (`mcp.json ./mcp.json`) is only scanned once, and a target that matches nothing is a usage error even if the others matched.
 
 `--recursive` (or `-r`) makes a directory target check every subdirectory too, skipping `node_modules`, `.git`, `dist`, `build`, `venv`, `.venv`, `__pycache__`, and `.tox`. Useful for a monorepo where the manifest lives a few levels down, e.g. `apps/web/mcp.json`. A top-level manifest always wins if there is one; `--recursive` only adds nested ones alongside it.
 
@@ -101,6 +104,8 @@ repos:
     hooks:
       - id: webmcp-lint
 ```
+
+The hook passes every staged `mcp.json`, `webmcp.json` and `.well-known/mcp.json` in one call, so a repo with more than one is linted in a single run.
 
 ### In CI
 
@@ -194,7 +199,7 @@ manifest that trips it. That is how the corpus grows.
 
 - `0` - scan ran, nothing at or above `--fail-on`
 - `1` - a finding at or above `--fail-on` was found
-- `2` - usage error (target didn't resolve to any file, bad `--fail-on` value)
+- `2` - usage error (a target didn't resolve to any file, bad `--fail-on` value)
 
 ## What it does not do
 

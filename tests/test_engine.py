@@ -514,6 +514,45 @@ class CLI(unittest.TestCase):
         self.assertIn("Grade: F", out)
         self.assertIn("could not be read", out)
 
+    def _clean_manifest(self, path: Path) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(Path(__file__).parent / "corpus" / "benign" / "read-tool.json", path)
+        return path
+
+    def test_several_targets_are_scanned_together(self):
+        tmp = Path(tempfile.mkdtemp())
+        a = self._clean_manifest(tmp / "mcp.json")
+        b = self._clean_manifest(tmp / ".well-known" / "mcp.json")
+        code, out = self._run([str(a), str(b), "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertIn("2 manifest(s)", out)
+
+    def test_a_dirty_second_target_fails_the_gate(self):
+        a = self._clean_manifest(Path(tempfile.mkdtemp()) / "mcp.json")
+        bad = Path(__file__).parent / "corpus" / "malicious" / "prompt-injection.json"
+        code, _ = self._run([str(a), str(bad), "--no-color"])
+        self.assertEqual(code, 1)
+
+    def test_a_missing_second_target_is_a_usage_error(self):
+        a = self._clean_manifest(Path(tempfile.mkdtemp()) / "mcp.json")
+        code, _ = self._run([str(a), "/no/such/manifest.json", "--no-color"])
+        self.assertEqual(code, 2)
+
+    def test_the_same_file_twice_is_scanned_once(self):
+        a = self._clean_manifest(Path(tempfile.mkdtemp()) / "mcp.json")
+        same = a.parent / "." / "mcp.json"
+        code, out = self._run([str(a), str(same), "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertIn("1 manifest(s)", out)
+
+    def test_recursive_applies_to_every_directory_target(self):
+        one, two = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())
+        self._clean_manifest(one / "apps" / "web" / "mcp.json")
+        self._clean_manifest(two / "packages" / "site" / "webmcp.json")
+        code, out = self._run([str(one), str(two), "--recursive", "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertIn("2 manifest(s)", out)
+
     def test_unknown_ignore_rule_is_a_usage_error(self):
         # Silently suppressing nothing would leave someone believing they
         # turned a rule off when they did not.
