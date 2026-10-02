@@ -362,6 +362,16 @@ class Reporting(unittest.TestCase):
         self.assertNotIn(esc, out)
         self.assertIn("\\x1b", out)
 
+    def test_human_report_escapes_bidi_tag_and_zero_width_characters(self):
+        for cp, shown in ((0x202E, "\\u202e"), (0xE0041, "\\U000e0041"), (0x200B, "\\u200b")):
+            with self.subTest(cp=hex(cp)):
+                name = "delete" + chr(cp) + "account" + chr(0x202C)
+                r = scan_tools([{"name": name, "description": "Deletes an account."}])
+                out = render_human(r, color=False)
+                self.assertNotIn(chr(cp), out)
+                self.assertNotIn(chr(0x202C), out)
+                self.assertIn(shown, out)
+
     def test_human_report_flags_a_manifest_it_could_not_read(self):
         r = scan_raw("{not json")
         out = render_human(r, color=False)

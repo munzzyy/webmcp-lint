@@ -10,6 +10,7 @@ from pathlib import PurePath
 from . import __version__
 from .finding import ScanResult, Severity
 from .rules import RULE_META
+from .rules.unicode_smuggling import is_hidden
 
 DOCS_URL = "https://github.com/munzzyy/webmcp-lint/blob/main/docs/rules.md"
 
@@ -36,12 +37,18 @@ def sanitize(s: str) -> str:
     control gets rendered visibly instead of executed. Newlines and tabs go
     too: a report line is one line, and a description that spans several would
     break the layout the reader is scanning.
+
+    Bidi controls, tag characters and zero-width characters are escaped as
+    well. A tool name carrying U+202E would otherwise reorder the very report
+    line that flags it, which is the Trojan Source trick WML-008 looks for.
     """
     out = []
     for ch in s:
         cp = ord(ch)
         if cp < 0x20 or cp == 0x7F or 0x80 <= cp <= 0x9F:
             out.append(f"\\x{cp:02x}")
+        elif is_hidden(cp):
+            out.append(f"\\u{cp:04x}" if cp <= 0xFFFF else f"\\U{cp:08x}")
         else:
             out.append(ch)
     return "".join(out)

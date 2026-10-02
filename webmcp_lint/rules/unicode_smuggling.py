@@ -57,6 +57,12 @@ def _is_tag_char(cp: int) -> bool:
     return 0xE0000 <= cp <= 0xE007F
 
 
+def is_hidden(cp: int) -> bool:
+    """A bidi control, an invisible tag character, or a zero-width character.
+    The report escapes these too, so it can't be reordered by what it quotes."""
+    return cp in _BIDI or cp in _INVISIBLE or _is_tag_char(cp)
+
+
 def _control_label(cp: int) -> str:
     if cp == 0x1B:
         return "ESC, the start of a terminal escape sequence"
