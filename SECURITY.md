@@ -3,9 +3,9 @@
 webmcp-lint reads a WebMCP tool manifest and reports what is wrong with it
 before a site ships it. Parsing is `json.loads` for a JSON manifest, or a
 small tokenizer that reads the literal passed to each `registerTool(...)` in
-JS or HTML source, plus text analysis of names, descriptions, and schemas.
-It never fetches the manifest from the network, never registers or calls a
-tool, and never executes anything it reads.
+JS, TypeScript or HTML source, plus text analysis of names, descriptions,
+and schemas. It never fetches the manifest from the network, never registers
+or calls a tool, and never executes anything it reads.
 
 Manifests are untrusted by definition - auditing a third party's manifest is
 normal use, and some of those manifests will be actively malicious. A manifest

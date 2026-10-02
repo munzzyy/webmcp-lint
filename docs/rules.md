@@ -139,13 +139,14 @@ A manifest that could not be read is reported **high** and grades **F with a
 score of zero**, because no other rule inspected it. A scan that inspected
 nothing must not look like a pass.
 
-In JS or HTML source, a `registerTool(...)` call whose argument isn't a
-literal (a variable, a spread, a value built at runtime) cannot be checked,
-and neither can a call in an HTML attribute such as `onclick`, inside a
-`${...}`, or after a `/` the tokenizer could not tell was a regex or a
-division. Next to calls that could be read, they get one **high** finding
-that lists the line of each, and `--ignore` cannot drop it. If no call in
-the file could be read, the file counts as unread and grades F.
+In JS, TypeScript or HTML source, a `registerTool(...)` call whose argument
+isn't a literal (a variable, a spread, a value built at runtime) cannot be
+checked, and neither can a call in an HTML attribute such as `onclick`,
+inside a `${...}`, after a `/` the tokenizer could not tell was a regex or a
+division, or after JSX markup. Next to calls that could be read, they get
+one **high** finding that lists the line of each, and `--ignore` cannot drop
+it. If no call in the file could be read, the file counts as unread and
+grades F.
 
 If scanning one file crashes webmcp-lint, that file gets a **high** finding
 naming the error and grades F, and the other files in the run are still
@@ -265,8 +266,8 @@ offers the agent nothing.
 
 The rule reads the whole file, so it catches the old API name wherever it
 appears: in a JSON manifest's description, a docs link, an example, or a
-build-time export that recorded the call site, and in scanned JS or HTML
-source, where it is usually the `registerTool` call itself.
+build-time export that recorded the call site, and in scanned JS, TypeScript
+or HTML source, where it is usually the `registerTool` call itself.
 
 ```json
 [{"name": "search", "description": "Registered via navigator.modelContext.registerTool."}]

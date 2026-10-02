@@ -44,6 +44,14 @@ parses what comes after them in ways that depend on the whole document
 tree; the walk follows the simple cases, and once it meets one it cannot
 follow, every "registerTool(" from there to the end of the page that it did
 not read as a call is reported as unread.
+
+TypeScript and JSX go through the same tokenizer. Type annotations and
+return types on the `execute` callback, type arguments on the call, and
+`as` or `satisfies` after a literal value are skipped, and a method
+signature such as `registerTool(tool: Tool): void` in an interface or class
+is a definition, not a call. A "<" where a value should start can open JSX,
+which the tokenizer does not parse, so it counts as a guess like the "/"
+above.
 """
 
 from __future__ import annotations
@@ -58,8 +66,12 @@ from pathlib import Path
 from .manifest import MAX_FILE_BYTES, Manifest, _decode, _normalize_tool
 
 # Extensions scan_files() routes through this module instead of manifest.py.
-JS_EXTENSIONS = (".js", ".mjs", ".html", ".htm")
+JS_EXTENSIONS = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".html", ".htm")
 _HTML_EXTENSIONS = (".html", ".htm")
+_MODULE_EXTENSIONS = (".mjs", ".mts")
+_TS_EXTENSIONS = (".ts", ".mts", ".cts", ".tsx")
+# No JSX in these, so a "<" before a value is a type assertion or type parameters.
+_NO_JSX_EXTENSIONS = (".ts", ".mts", ".cts")
 
 _WS_RX = re.compile(
     r"[ \t\n\r\f\v\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+")
@@ -99,8 +111,11 @@ def _spelled(word: str) -> str:
 
 
 # Any spelling of a registerTool( call, wherever it sits. Not unregisterTool(.
-_CANDIDATE_RX = re.compile(
-    r"(?<![\w$\u200c\u200d\\])" + _spelled("registerTool") + r"\s*(?:\?\.\s*)?\(")
+_CALL_NAME = (
+    r"(?<![\w$\u200c\u200d\\])" + _spelled("registerTool"))
+_CANDIDATE_RX = re.compile(_CALL_NAME + r"\s*(?:\?\.\s*)?\(")
+# TypeScript can put a non-null "!" or type arguments between the name and the "(".
+_TS_CANDIDATE_RX = re.compile(_CALL_NAME + r"\s*(?:!\s*)?(?:\?\.\s*)?[(<]")
 
 # After one of these keywords a "/" starts a regex. After any other word it divides.
 _REGEX_AFTER_WORDS = frozenset((
@@ -117,6 +132,11 @@ _LINE_END_WORDS = frozenset(("return", "yield", "await", "of"))
 _LITERAL_KINDS = frozenset(("]", "S", "N", "T", "R"))
 _ASI_KINDS = frozenset((None, ";", "{", "}", ")", "=>", "]", "S", "N", "T", "R", "X", "++", "--"))
 _BRACE_CONTEXT = {"{b": "block", "{e": "expr", "{c": "class"}
+# Before a bare registerTool( one of these means a value goes here, so it is a call.
+# Not void, which also ends a member's return type on the line before.
+_VALUE_WORDS = (_REGEX_AFTER_WORDS | _UNSURE_WORDS) - {"void"}
+_MEMBER_STARTS = _LITERAL_KINDS | {"{", ",", ";", "}", ")"}
+_ANGLE_CLOSERS = {">": 1, ">>": 2, ">>>": 3}
 
 _OPENERS = frozenset(("(", "[", "{"))
 _CLOSERS = {")": "(", "]": "[", "}": "{"}
@@ -141,6 +161,9 @@ _AFTER_SLASH = ('it follows a "/" that could be a regex or a division, so the sc
                 "have read it as part of a string or comment by mistake")
 _AFTER_HTML_COMMENT = ('it follows a "<!--", which is a comment in a classic script but code '
                        "in a module, so the scanner may have read it as a comment by mistake")
+_AFTER_JSX = ('it follows a "<" that could open JSX markup, which the scanner does not parse, '
+              "so it may have read part of the markup as a string or comment by mistake")
+_TYPE_ARGUMENTS = "the scanner could not find the end of its type arguments"
 _UNTOKENIZED = "the scanner could not tokenize the code around it"
 _IN_SUBSTITUTION = "it is inside a ${...} in a template literal"
 _IN_ATTRIBUTE = "it is in an HTML attribute value, which the scanner does not read as code"
@@ -159,11 +182,14 @@ class _Unreadable(Exception):
     pass
 
 
-def scan_source(text: str, html: bool = False, module=None) -> list:
+def scan_source(text: str, html: bool = False, module=None, ts: bool = False,
+                jsx: bool = True) -> list:
     """Every registerTool(...) call site in `text`, readable or not, in order.
 
     `module` says whether JS is an ES module (True), a classic script
-    (False) or unknown (None); it decides what "<!--" means.
+    (False) or unknown (None); it decides what "<!--" means. `ts` reads
+    TypeScript type arguments and non-null "!", and `jsx` says whether a
+    "<" before a value can open JSX.
     """
     if html:
         walk = _HtmlWalk(text)
@@ -178,7 +204,7 @@ def scan_source(text: str, html: bool = False, module=None) -> list:
                 if c not in seen and not _within(walk.values, c):
                     found.append((c, None, _UNFOLLOWED))
     else:
-        found = _scan_js(text, _shifted(0), module)
+        found = _scan_js(text, _shifted(0), module, ts, jsx)
     found.sort(key=lambda f: f[0])
     calls = []
     line, counted = 1, 0
@@ -189,9 +215,9 @@ def scan_source(text: str, html: bool = False, module=None) -> list:
     return calls
 
 
-def extract_tools(text: str, html: bool = False) -> list:
+def extract_tools(text: str, html: bool = False, ts: bool = False) -> list:
     """The tool dicts from every registerTool({...}) call that could be read."""
-    return [c.tool for c in scan_source(text, html) if c.tool is not None]
+    return [c.tool for c in scan_source(text, html, ts=ts) if c.tool is not None]
 
 
 def describe_unread(calls) -> str:
@@ -213,22 +239,26 @@ def _within(spans, c: int) -> bool:
     return i >= 0 and c < spans[i][1]
 
 
-def _scan_js(text: str, where, module) -> list:
+def _scan_js(text: str, where, module, ts: bool = False, jsx: bool = True) -> list:
     """(page offset, tool or None, problem) for each call site in one piece
     of JS. `where` maps an offset in `text` to an offset in the page."""
-    kinds, vals, starts, ends, subs, unsure, why_unsure, ctx = _tokenize(text, module)
+    kinds, vals, starts, ends, subs, unsure, why_unsure, ctx = _tokenize(text, module, ts, jsx)
     kinds.extend(("E", "E", "E"))
     vals.extend((None, None, None))
     match = _match_brackets(kinds)
     out = []
     seen = set()
-    for k, paren in _call_sites(kinds, vals, match, ctx):
+    angles = _match_angles(kinds) if ts else None
+    for k, paren in _call_sites(kinds, vals, match, ctx, angles):
         seen.add(starts[k])
+        if paren is None:
+            out.append((where(starts[k]), None, _TYPE_ARGUMENTS))
+            continue
         try:
             out.append((where(starts[k]), _read_call(kinds, vals, match, paren), ""))
         except _Unreadable as e:
             out.append((where(starts[k]), None, str(e)))
-    for m in _CANDIDATE_RX.finditer(text):
+    for m in (_TS_CANDIDATE_RX if ts else _CANDIDATE_RX).finditer(text):
         c = m.start()
         if c in seen:
             continue
@@ -253,7 +283,7 @@ def _missed(c, kinds, starts, ends, subs, unsure, why_unsure) -> str:
     return why_unsure if c >= unsure else ""
 
 
-def _tokenize(text: str, module=None):
+def _tokenize(text: str, module=None, ts: bool = False, jsx: bool = True):
     """Split JS source into tokens in one linear pass.
 
     Returns parallel lists: kinds, values, start and end offsets. A
@@ -286,6 +316,7 @@ def _tokenize(text: str, module=None):
     templates = 0
     template_start = sub_start = -1
     regex_memo = [None]
+    class_words = ("class", "interface") if ts else ("class",)
 
     while i < n:
         if stack and stack[-1] == "`":
@@ -365,7 +396,13 @@ def _tokenize(text: str, module=None):
             m = _NUMBER_RX.match(text, i)
             kind, val, i = "N", _js_number(m.group()), m.end()
         elif c == "/":
-            regex, guess = _slash(prev, prev_val, dotted, paren_kw, brace, ended)
+            if ts and prev == "!":
+                # x! / 2 divides after TypeScript's non-null "!"; !/re/ is a regex.
+                postfix = before in _LITERAL_KINDS or before == ")" or (
+                    before == "I" and before_val not in _VALUE_WORDS)
+                regex, guess = not postfix, True
+            else:
+                regex, guess = _slash(prev, prev_val, dotted, paren_kw, brace, ended)
             if guess and i < unsure:
                 unsure, why_unsure = i, _AFTER_SLASH
             end = _scan_regex(text, i, regex_memo) if regex else -1
@@ -384,18 +421,21 @@ def _tokenize(text: str, module=None):
                     kind, val, i = m.group(), None, m.end()
                 else:
                     kind, val, i = "X", None, i + 1
+                if (jsx and kind == "<" and start < unsure
+                        and _slash(prev, prev_val, dotted, paren_kw, brace, ended)[0]):
+                    unsure, why_unsure = start, _AFTER_JSX
 
         newline = not line_has_code
         line_has_code = True
         now_dotted = now_paren_kw = now_colon_q = now_ended = False
         now_brace = "b"
-        if prev == "I" and prev_val == "class" and kind not in ("I", "{"):
+        if prev == "I" and prev_val in class_words and kind not in ("I", "{"):
             class_at = -1  # `{class: ...}` or `x.class(...)`: a name, not a class
         if kind == "I":
             now_dotted = prev in (".", "?.", "#")
             now_ended = not now_dotted and (val in _NO_OPERAND_WORDS or (
                 ended and not newline and prev_val in ("break", "continue")))
-            if val == "class" and not now_dotted:
+            if val in class_words and not now_dotted:
                 class_at = len(stack)
         elif kind == "(":
             kw = prev == "I" and not dotted and (
@@ -485,7 +525,7 @@ def _slash(prev, prev_val, dotted, paren_kw, brace, ended):
 def _brace_kind(prev, prev_val, dotted, colon_q, top, newline) -> str:
     """"b" if a "{" after `prev` opens a block, "e" if an object literal."""
     if prev == ":":
-        return "e" if colon_q or top in ("{e", "(", "(k", "[", "${") else "b"
+        return "e" if colon_q or top in ("{e", "{c", "(", "(k", "[", "${") else "b"
     if prev in _ASI_KINDS:
         return "b"
     if prev == "I":
@@ -641,13 +681,16 @@ def _match_brackets(kinds) -> array:
     return match
 
 
-def _call_sites(kinds, vals, match, ctx):
+def _call_sites(kinds, vals, match, ctx, angles=None):
     """(name token, "(" token) for each registerTool call, skipping definitions.
+    The "(" is None when TypeScript type arguments hide where the call starts.
 
     `x.registerTool(...)`, `x?.registerTool?.(...)` and `x["registerTool"](...)`
     are always calls. A bare `registerTool(...) {` is a method definition only
     inside an object literal or class body; anywhere else it is a call
-    followed by a block.
+    followed by a block. In TypeScript the same goes for a bare
+    `registerTool(tool: Tool)` that starts a member there, since only a
+    signature has a typed parameter, and an interface body counts as a class.
     """
     for k in range(len(kinds) - 3):
         kind = kinds[k]
@@ -660,8 +703,15 @@ def _call_sites(kinds, vals, match, ctx):
             dotted = True
         else:
             continue
+        if angles is not None and kinds[p] == "!":
+            p += 1
         if kinds[p] == "?.":
             p += 1
+        if angles is not None and kinds[p] == "<":
+            p = angles.get(p)
+            if p is None:
+                yield k, None
+                continue
         if kinds[p] != "(":
             continue
         if not dotted:
@@ -669,10 +719,62 @@ def _call_sites(kinds, vals, match, ctx):
                 continue
             if k > 1 and kinds[k - 1] == "*" and kinds[k - 2] == "I" and vals[k - 2] == "function":
                 continue
-            close = match[p]
-            if close != -1 and kinds[close + 1] == "{" and ctx.get(k) in ("expr", "class"):
-                continue
+            if ctx.get(k) in ("expr", "class"):
+                close = match[p]
+                if close != -1 and kinds[close + 1] == "{":
+                    continue
+                if (angles is not None and _starts_member(kinds, vals, k)
+                        and _typed_parameter(kinds, match, p)):
+                    continue
         yield k, p
+
+
+def _match_angles(kinds) -> dict:
+    """For each "<" that a ">" later closes inside the same brackets, the
+    index just past that ">". A "<" can also be less-than, so this is only
+    asked about one that opens type arguments, and inside those every "<"
+    and ">" pairs up."""
+    after = {}
+    levels = [("", [])]
+    for idx, kind in enumerate(kinds):
+        if kind in _OPENERS:
+            levels.append((kind, []))
+        elif kind in _CLOSERS:
+            if len(levels) > 1 and levels[-1][0] == _CLOSERS[kind]:
+                levels.pop()
+        elif kind == "<":
+            levels[-1][1].append(idx)
+        elif kind in _ANGLE_CLOSERS:
+            opened = levels[-1][1]
+            for _ in range(min(_ANGLE_CLOSERS[kind], len(opened))):
+                after[opened.pop()] = idx + 1
+    return after
+
+
+def _starts_member(kinds, vals, k) -> bool:
+    """Whether token k can start a member of a class, interface or object
+    type rather than sit where a value goes."""
+    prev = kinds[k - 1] if k > 0 else None
+    if prev == "I":
+        return vals[k - 1] not in _VALUE_WORDS
+    return prev in _MEMBER_STARTS
+
+
+def _typed_parameter(kinds, match, paren) -> bool:
+    """Whether the first parameter in the (...) at `paren` has a type
+    annotation, as in `(tool: Tool)`, `(tool?: Tool)` or `({a}: Tool)`."""
+    i = paren + 1
+    if kinds[i] == "...":
+        i += 1
+    if kinds[i] == "I":
+        i += 1
+        if kinds[i] == "?":
+            i += 1
+    elif kinds[i] in ("{", "[") and match[i] != -1:
+        i = match[i] + 1
+    else:
+        return False
+    return kinds[i] == ":"
 
 
 def _read_call(kinds, vals, match, paren) -> dict:
@@ -736,6 +838,11 @@ def _read_object(kinds, vals, match, i) -> dict:
                 cur.append(None if value is _UNDEFINED else value)
 
         cur, _path = stack[-1]
+        if kinds[i] == "I" and vals[i] in ("as", "satisfies"):
+            end = _type_end(kinds, match, i + 1, (",", "}", "]"))
+            if end is None or end == i + 1:
+                raise _Unreadable(f'"{where}" has a type after it that the scanner cannot read')
+            i = end
         if kinds[i] == ",":
             i += 1
         elif kinds[i] != ("}" if isinstance(cur, dict) else "]"):
@@ -772,7 +879,9 @@ def _read_key(kinds, vals, match, i, path):
     i += 1
     if kinds[i] == "(" and match[i] != -1:
         body = match[i] + 1
-        if kinds[body] == "{" and match[body] != -1:
+        if kinds[body] == ":":
+            body = _body_after_type(kinds, match, body)
+        if body is not None and kinds[body] == "{" and match[body] != -1:
             return key, where, match[body] + 1, True
     if not prefixed and kinds[i] == ":":
         return key, where, i, False
@@ -832,11 +941,19 @@ def _skip_function(kinds, vals, match, i):
         if kinds[i] != "(" or match[i] == -1:
             return None
         i = match[i] + 1
+        if kinds[i] == ":":
+            i = _body_after_type(kinds, match, i)
+            if i is None:
+                return None
         if kinds[i] != "{" or match[i] == -1:
             return None
         return match[i] + 1
     if kinds[i] == "(" and match[i] != -1:
         i = match[i] + 1
+        if kinds[i] == ":":
+            i = _type_end(kinds, match, i + 1, ("=>",))
+            if i is None:
+                return None
     elif kinds[i] == "I":
         i += 1
     else:
@@ -856,6 +973,41 @@ def _skip_function(kinds, vals, match, i):
             return None if kind == "E" else i
         else:
             i += 1
+
+
+def _type_end(kinds, match, i, stops):
+    """Index of the first token from i in `stops` that is outside every
+    bracket and <...> of a TypeScript type, or None."""
+    depth = 0
+    while True:
+        kind = kinds[i]
+        if kind in _OPENERS:
+            if match[i] == -1:
+                return None
+            i = match[i] + 1
+            continue
+        if depth == 0 and kind in stops:
+            return i
+        if kind in _CLOSERS or kind in (";", "E"):
+            return None
+        if kind == "<":
+            depth += 1
+        elif kind in _ANGLE_CLOSERS:
+            depth -= _ANGLE_CLOSERS[kind]
+            if depth < 0:
+                return None
+        i += 1
+
+
+def _body_after_type(kinds, match, colon):
+    """The "{" of a function body after the return type whose ":" is at
+    `colon`, or None. The type can itself be an object type, so the body is
+    the last {...} before the "," or "}" that ends the property."""
+    end = _type_end(kinds, match, colon + 1, (",", "}"))
+    if end is None or kinds[end - 1] != "}":
+        return None
+    body = match[end - 1]
+    return body if body > colon + 1 else None
 
 
 _ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
@@ -1243,7 +1395,8 @@ def load(path: Path) -> Manifest:
 
     suffix = path.suffix.lower()
     calls = scan_source(text, html=suffix in _HTML_EXTENSIONS,
-                        module=True if suffix == ".mjs" else None)
+                        module=True if suffix in _MODULE_EXTENSIONS else None,
+                        ts=suffix in _TS_EXTENSIONS, jsx=suffix not in _NO_JSX_EXTENSIONS)
     readable = [c for c in calls if c.tool is not None]
     unread = [c for c in calls if c.tool is None]
     if not calls:

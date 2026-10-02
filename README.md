@@ -85,6 +85,7 @@ webmcp-lint ./public                    # looks for mcp.json / webmcp.json / .we
 webmcp-lint ./public --recursive        # also looks inside subdirectories
 webmcp-lint "manifests/*.json"          # glob, expanded by the tool (works on Windows too)
 webmcp-lint mcp.json .well-known/mcp.json   # several targets in one run
+webmcp-lint src/tools.ts                # JS, TypeScript or HTML source, see below
 ```
 
 Several targets are scanned as one run with one grade. A file reached twice (`mcp.json ./mcp.json`) is only scanned once, and a target that matches nothing is a usage error even if the others matched.
@@ -157,18 +158,23 @@ Set `upload-sarif: "false"` to skip the upload, for example on a token without
 `security-events: write`. The SARIF file is still written and its path is in the
 `sarif-file` output.
 
-### Scanning JS or HTML source directly
+### Scanning JS, TypeScript or HTML source directly
 
 There's no manifest file in the WebMCP spec: a page registers each tool at runtime with `document.modelContext.registerTool({...})`, and most real sites never produce a JSON file at all. Point webmcp-lint at that source instead:
 
 ```bash
 webmcp-lint public/index.html
 webmcp-lint src/tools.js
+webmcp-lint src/tools.tsx
 ```
+
+A target ending in `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx`, `.html` or `.htm` is read as source, and any other file as a JSON manifest. A directory scan still only falls back to `index.html`, `index.htm`, `mcp.js` and `webmcp.js`, so name a TypeScript or JSX file to scan it.
 
 This is best effort, not a JS parser. It tokenizes the file, so strings, comments, template literals and regex literals are told apart from code, then finds each `registerTool(` call and reads the object literal passed to it. Single quotes, unquoted keys, trailing commas and comments inside the literal are fine, and the `execute` callback is skipped. An HTML file is split up the way a browser's parser splits it, so a call in an HTML comment, in page text or in a `<style>` is ignored, and every `<script>` is read, inline SVG ones included.
 
-What it cannot read is a value it would have to run code to know: a tool built from a variable, a spread, a function call, or a template literal with `${...}`. Those call sites are not dropped. The file gets one HIGH WML-006 finding that lists the line of every call it could not read, and a file where no call could be read grades F like any other file nothing inspected. The same goes for a call it can see but can't be sure of: one in an `onclick` or another HTML attribute, one inside `${...}`, one after a `/` the tokenizer could not tell was a regex or a division, and anything after inline SVG, MathML or `<select>` markup it can't follow. A JSON manifest, when you have one, will always be scanned more completely.
+TypeScript and JSX go through the same tokenizer. It skips type annotations and a return type on `execute`, type arguments on the call (`registerTool<Args>({...})`), a non-null `!`, and `as const` or `satisfies` after a value, and a `registerTool(tool: Tool): void` signature in an interface or class is not a call. It doesn't parse JSX markup.
+
+What it cannot read is a value it would have to run code to know: a tool built from a variable, a spread, a function call, or a template literal with `${...}`. Those call sites are not dropped. The file gets one HIGH WML-006 finding that lists the line of every call it could not read, and a file where no call could be read grades F like any other file nothing inspected. The same goes for a call it can see but can't be sure of: one in an `onclick` or another HTML attribute, one inside `${...}`, one after a `/` the tokenizer could not tell was a regex or a division, one after JSX markup, and anything after inline SVG, MathML or `<select>` markup it can't follow. A JSON manifest, when you have one, will always be scanned more completely.
 
 ### Suppressing a finding
 
@@ -212,7 +218,7 @@ manifest that trips it. That is how the corpus grows.
 - A clean grade means nothing in the manifest itself tripped a rule, not that the tool is safe to call. `readOnlyHint` and `untrustedContentHint` are self-reported by whoever wrote the manifest; webmcp-lint checks that they're set where the text implies they should be, not that they're honest.
 - The prompt-injection and content-keyword rules are pattern matching over English phrasing. They catch the direct, common forms and will miss a determined paraphrase or another language, and can occasionally flag an ordinary sentence that happens to use the same words.
 - It expects a WebMCP-shaped manifest (a JSON array of tools, or an object with a `"tools"` array). Point it at an unrelated JSON file and you get a WML-006 structure error, grade F, and a non-zero exit. That is deliberate: a file the linter could not read has not been checked, and a scan that checked nothing must not look like a pass.
-- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. You can point webmcp-lint at a JSON tool list you produce (an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file), or at the JS/HTML source itself. The source scanner is a tokenizer, not a JS parser: it reads a literal object argument and nothing more. A tool assembled from a variable, a spread, or a template literal with interpolation cannot be checked, and the report says so with a HIGH finding on that line instead of passing it. A JSON manifest is always the more complete input.
+- WebMCP tools are registered in JavaScript, with `document.modelContext.registerTool(...)`. You can point webmcp-lint at a JSON tool list you produce (an MCP `tools/list` response, a build-time export of your `registerTool` arguments, or a hand-written file), or at the JS, TypeScript or HTML source itself (`.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx`, `.html`, `.htm`). The source scanner is a tokenizer, not a JS parser, and it doesn't type-check anything: it reads a literal object argument and nothing more. A tool assembled from a variable, a spread, or a template literal with interpolation cannot be checked, and the report says so with a HIGH finding on that line instead of passing it. A JSON manifest is always the more complete input.
 
 ## Roadmap
 
