@@ -3,6 +3,7 @@
 import contextlib
 import io
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -293,6 +294,27 @@ class DeepNesting(unittest.TestCase):
 
         self.assertEqual(len(extract_tools(nested(MAX_NESTING - 1))), 1)
         self.assertEqual(extract_tools(nested(MAX_NESTING)), [])
+
+
+class HostileSourceIsFast(unittest.TestCase):
+    def _timed_scan(self, text):
+        path = _write(text, name="tools.js")
+        start = time.monotonic()
+        result = scan_files([path], root=str(path))
+        return result, time.monotonic() - start
+
+    def test_many_unclosed_calls(self):
+        text = "registerTool({ " * 126000
+        self.assertGreater(len(text), 1_800_000)
+        r, seconds = self._timed_scan(text)
+        self.assertLess(seconds, 5)
+        self.assertTrue(any(f.not_scanned for f in r.findings))
+
+    def test_unclosed_block_comments_inside_a_string(self):
+        text = 'registerTool({name: "a", description: "' + "/* " * 600000 + '"});'
+        r, seconds = self._timed_scan(text)
+        self.assertLess(seconds, 5)
+        self.assertEqual(r.tools, 1)
 
 
 class Fixtures(unittest.TestCase):

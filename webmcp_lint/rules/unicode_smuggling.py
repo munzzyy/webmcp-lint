@@ -10,6 +10,8 @@ building a finding message, so this file's own source stays plain ASCII.
 
 from __future__ import annotations
 
+import re
+
 from ..finding import Category, Severity
 from ._schema_walk import tool_text_fields
 from ._util import mk
@@ -65,7 +67,20 @@ def _control_label(cp: int) -> str:
     return "C0 control character"
 
 
+def _char_class(codepoints) -> str:
+    return "".join("\\U%08x" % cp for cp in sorted(codepoints))
+
+
+# Anything _scan could report. Most text has none, and one regex pass is far
+# cheaper than the per-character loop on a 2 MB description.
+_SUSPECT = re.compile(
+    "[" + _char_class(set(_INVISIBLE) | set(_BIDI)) + "\\U000e0000-\\U000e007f"
+    "\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f]")
+
+
 def _scan(text: str) -> list:
+    if not _SUSPECT.search(text):
+        return []
     hits = []
     for i, ch in enumerate(text):
         cp = ord(ch)

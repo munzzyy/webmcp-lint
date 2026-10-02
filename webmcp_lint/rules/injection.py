@@ -51,11 +51,68 @@ _SEPARATORS = re.compile(r"[^A-Za-z0-9:\n]+")
 # first, fold each piece, then rejoin with a sentinel \s+ can't cross. A bare
 # newline is NOT a sentence boundary (it's ordinary wrapping an attacker can
 # drop mid-phrase), so it never becomes this wall.
-_BREAK = re.compile(r"[^A-Za-z0-9:]*[.!?][\s\"')\]][^A-Za-z0-9:]*")
+#
+# The split point is the whole separator run around each "end punctuation +
+# space" pair. One regex starting with [^A-Za-z0-9:]* finds the same runs but
+# rescans a long run of punctuation from every position in it, and a
+# description of "/* " repeated took minutes.
+_SEPARATOR_RUN = re.compile(r"[^A-Za-z0-9:]+")
+_STOP_THEN_SPACE = re.compile(r"[.!?][\s\"')\]]")
 _SENTINEL = "\x00"
 
-# (compiled, title, detail). Public because the aggregate rule (WML-010)
-# re-runs the same set over joined and decoded text.
+
+def _sentences(text: str) -> list:
+    pieces, last = [], 0
+    n = len(text)
+    backwards = None
+    for stop in _STOP_THEN_SPACE.finditer(text):
+        at = stop.start()
+        if at < last:
+            continue
+        if backwards is None:
+            backwards = text[::-1]
+        start = n - _SEPARATOR_RUN.match(backwards, n - 1 - at).end()
+        pieces.append(text[last:start])
+        last = _SEPARATOR_RUN.match(text, at).end()
+    pieces.append(text[last:])
+    return pieces
+
+
+class _SilentRunDirective:
+    """"always run ... without asking" with any gap that stays on one line.
+
+    As a single regex this needs an unbounded gap, and then every "always
+    run" on a line rescans the rest of it: a 1.6 MB description of them ran
+    for hours. Bounding the gap would let padding slip a directive through.
+    So: for the first opener on each line, is there a closer later on that
+    line? Each line is scanned once, and a closer found once is reused.
+    """
+
+    _OPEN = re.compile(r"\balways\s+(?:run|execute|use|call|invoke)\b", re.IGNORECASE)
+    _CLOSE = re.compile(r"\bwithout\s+(?:asking|confirming|prompting|checking)", re.IGNORECASE)
+    _BREAK = re.compile(r"[\n.]")
+
+    def search(self, text: str):
+        checked_to = -1
+        closer = None
+        for m in self._OPEN.finditer(text):
+            if m.end() <= checked_to:
+                continue
+            brk = self._BREAK.search(text, m.end())
+            line_end = brk.start() if brk else len(text)
+            if closer is None or closer.start() < m.end():
+                closer = self._CLOSE.search(text, m.end())
+                if closer is None:
+                    return None
+            if closer.start() < line_end:
+                return m
+            checked_to = line_end
+        return None
+
+
+# (matcher, title, detail). Public because the aggregate rule (WML-010)
+# re-runs the same set over joined and decoded text. A matcher is a compiled
+# regex or anything else with the same search(text) method.
 PATTERNS = (
     (re.compile(r"\bignore\s+(?:all\s+|any\s+)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding|foregoing)\s+(?:instructions?|prompts?|context|rules?|messages?|directions?)", _I),
      "Instruction-override phrasing",
@@ -85,7 +142,7 @@ PATTERNS = (
      "Fake role header",
      'Opens with a "system:"/"assistant:" style header, mimicking a real chat-role '
      "message to smuggle instructions into the agent's context."),
-    (re.compile(r"\balways\s+(?:run|execute|use|call|invoke)\b[^\n.]*\bwithout\s+(?:asking|confirming|prompting|checking)", _I),
+    (_SilentRunDirective(),
      "Silent tool-execution directive",
      "Tells the agent to always run this tool without asking."),
 )
@@ -115,7 +172,7 @@ def fold_for_matching(text: str) -> str:
     findings still report the tool's original, unmodified name/description.
     """
     normalized = unicodedata.normalize("NFKC", text)
-    segments = (_SEPARATORS.sub(" ", seg) for seg in _BREAK.split(normalized))
+    segments = (_SEPARATORS.sub(" ", seg) for seg in _sentences(normalized))
     return _SENTINEL.join(segments)
 
 
