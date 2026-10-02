@@ -33,10 +33,17 @@ inputs:
     default: "high"
   ref:
     description: >-
-      Git tag of munzzyy/webmcp-lint to install (it installs from source
-      until it's on PyPI).
+      Git tag or commit of munzzyy/webmcp-lint to install instead of this
+      action's own copy. Empty (the default) installs the code this action
+      was pinned to.
     required: false
-    default: "v0.1.1"
+    default: ""
+  upload-sarif:
+    description: >-
+      Upload the SARIF to the repo's Security tab ("true"/"false"). Needs
+      security-events: write when "true".
+    required: false
+    default: "true"
   ignore:
     description: >-
       Rule ids to suppress everywhere, comma-separated (for example
@@ -50,7 +57,7 @@ outputs:
     value: ${{ steps.gate.outputs.result }}
   sarif-file:
     description: "Path to the generated SARIF file."
-    value: ${{ steps.sarif.outputs.file }}
+    value: ${{ steps.generate.outputs.file }}
 
 runs:
   using: "composite"
@@ -60,9 +67,17 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
+    # The action's own checkout by default, so pinning the action to a tag or
+    # commit pins the linter it runs too.
     - name: Install webmcp-lint
       shell: bash
-      run: python3 -m pip install --quiet "git+https://github.com/munzzyy/webmcp-lint@${INPUTS_REF}"
+      run: |
+        if [ -n "${INPUTS_REF}" ]; then
+          python3 -m pip install --quiet "git+https://github.com/munzzyy/webmcp-lint@${INPUTS_REF}"
+        else
+          python3 -m pip install --quiet "${GITHUB_ACTION_PATH}"
+        fi
+        webmcp-lint --version
       env:
         INPUTS_REF: ${{ inputs.ref }}
 
@@ -71,7 +86,7 @@ runs:
     # severity threshold -- the SARIF file shouldn't be missing results just
     # because they're below the job's own pass/fail bar.
     - name: Generate SARIF
-      id: sarif
+      id: generate
       shell: bash
       continue-on-error: true
       run: |
@@ -92,6 +107,14 @@ runs:
         INPUTS_PATH: ${{ inputs.path }}
         INPUTS_IGNORE: ${{ inputs.ignore }}
         INPUTS_RECURSIVE: ${{ inputs.recursive }}
+
+    - name: Decide on the SARIF upload
+      id: sarif
+      if: steps.generate.outcome == 'success' && inputs.upload-sarif == 'true'
+      shell: bash
+      run: echo "file=${SARIF_FILE}" >> "$GITHUB_OUTPUT"
+      env:
+        SARIF_FILE: ${{ steps.generate.outputs.file }}
 
     - name: Upload SARIF
       if: steps.sarif.outcome == 'success'

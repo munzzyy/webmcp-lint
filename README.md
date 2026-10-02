@@ -146,11 +146,16 @@ jobs:
           path: mcp.json      # file, directory, or glob (default: ".")
           fail-on: high        # default: high
           recursive: "false"   # also check subdirectories (default: "false")
+          upload-sarif: "true" # send findings to the Security tab (default: "true")
 ```
 
-webmcp-lint isn't on PyPI, so the action installs straight from the tagged source; `ref`
-(default `v0.1.1`) picks which tag it installs. SARIF upload always runs with every finding,
+The action installs webmcp-lint from its own copy, so pinning the action to a tag or a
+commit SHA pins the linter it runs as well. `ref` installs a different tag or commit of
+webmcp-lint instead, if you ever need that. SARIF upload always runs with every finding,
 independent of `fail-on`. The threshold only decides whether the job itself passes or fails.
+Set `upload-sarif: "false"` to skip the upload, for example on a token without
+`security-events: write`. The SARIF file is still written and its path is in the
+`sarif-file` output.
 
 ### Scanning JS or HTML source directly
 

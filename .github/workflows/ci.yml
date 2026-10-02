@@ -30,3 +30,26 @@ jobs:
         run: |
           python -m webmcp_lint tests/corpus/benign/read-tool.json --fail-on high
           python -m webmcp_lint tests/corpus/malicious/prompt-injection.json --json --fail-on none
+
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the action from this checkout
+        id: lint
+        uses: ./ # zizmor: ignore[self-repository] actionlint 1.7 rejects "$/"
+        with:
+          path: examples/example-manifest.json
+          fail-on: none
+          upload-sarif: "false"
+      - name: Check the action's outputs
+        shell: bash
+        run: |
+          test "$RESULT" = pass
+          test -n "$SARIF_FILE"
+          python3 -c 'import json, sys; assert json.load(open(sys.argv[1]))["runs"][0]["results"]' "$SARIF_FILE"
+        env:
+          RESULT: ${{ steps.lint.outputs.result }}
+          SARIF_FILE: ${{ steps.lint.outputs.sarif-file }}
