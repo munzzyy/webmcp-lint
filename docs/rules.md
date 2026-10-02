@@ -140,10 +140,12 @@ score of zero**, because no other rule inspected it. A scan that inspected
 nothing must not look like a pass.
 
 In JS or HTML source, a `registerTool(...)` call whose argument isn't a
-literal (a variable, a spread, a value built at runtime) cannot be checked.
-Next to calls that could be read, it is reported **high** with its line
-number, and `--ignore` cannot drop it. If no call in the file could be read,
-the file counts as unread and grades F.
+literal (a variable, a spread, a value built at runtime) cannot be checked,
+and neither can a call in an HTML attribute such as `onclick`, inside a
+`${...}`, or after a `/` the tokenizer could not tell was a regex or a
+division. Next to calls that could be read, they get one **high** finding
+that lists the line of each, and `--ignore` cannot drop it. If no call in
+the file could be read, the file counts as unread and grades F.
 
 If scanning one file crashes webmcp-lint, that file gets a **high** finding
 naming the error and grades F, and the other files in the run are still

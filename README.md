@@ -166,9 +166,9 @@ webmcp-lint public/index.html
 webmcp-lint src/tools.js
 ```
 
-This is best effort, not a JS parser. It tokenizes the file, so strings, comments, template literals and regex literals are told apart from code, then finds each `registerTool(` call and reads the object literal passed to it. Single quotes, unquoted keys, trailing commas and comments inside the literal are fine, and the `execute` callback is skipped. In an HTML file only `<script>` contents count, so a call inside an HTML comment is ignored.
+This is best effort, not a JS parser. It tokenizes the file, so strings, comments, template literals and regex literals are told apart from code, then finds each `registerTool(` call and reads the object literal passed to it. Single quotes, unquoted keys, trailing commas and comments inside the literal are fine, and the `execute` callback is skipped. An HTML file is split up the way a browser's parser splits it, so a call in an HTML comment, in page text or in a `<style>` is ignored, and every `<script>` is read, inline SVG ones included.
 
-What it cannot read is a value it would have to run code to know: a tool built from a variable, a spread, a function call, or a template literal with `${...}`. Those call sites are not dropped. Each one is reported as a HIGH WML-006 finding with its line number, and a file where no call could be read grades F like any other file nothing inspected. A JSON manifest, when you have one, will always be scanned more completely.
+What it cannot read is a value it would have to run code to know: a tool built from a variable, a spread, a function call, or a template literal with `${...}`. Those call sites are not dropped. The file gets one HIGH WML-006 finding that lists the line of every call it could not read, and a file where no call could be read grades F like any other file nothing inspected. The same goes for a call it can see but can't be sure of: one in an `onclick` or another HTML attribute, one inside `${...}`, one after a `/` the tokenizer could not tell was a regex or a division, and anything after inline SVG, MathML or `<select>` markup it can't follow. A JSON manifest, when you have one, will always be scanned more completely.
 
 ### Suppressing a finding
 
